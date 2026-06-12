@@ -15,6 +15,11 @@
  *       FAILS CLOSED if env vars are missing: throws RateLimitConfigError
  *       rather than silently degrading to in-memory in production.
  *
+ *   RATE_LIMIT_BACKEND=memory
+ *     Explicit single-instance production fallback for one-droplet launches.
+ *     This is not shared across containers and should be replaced with
+ *     Upstash before horizontal scaling.
+ *
  * Default policy: 5 requests per 15-minute sliding window.
  * This matches the M2 in-memory limiter policy.
  */
@@ -145,8 +150,9 @@ async function checkRateLimitUpstash(identifier: string): Promise<RateLimitResul
  */
 export async function checkRateLimit(identifier: string): Promise<RateLimitResult> {
   const env = process.env.NODE_ENV;
+  const backend = process.env.RATE_LIMIT_BACKEND;
 
-  if (env === "development" || env === "test") {
+  if (env === "development" || env === "test" || backend === "memory") {
     return checkRateLimitMemory(identifier);
   }
 

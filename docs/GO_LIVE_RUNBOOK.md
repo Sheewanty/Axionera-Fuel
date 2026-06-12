@@ -46,6 +46,10 @@ GHCR_USERNAME=<github-username>
 GHCR_TOKEN=<github-token-with-read:packages>
 ```
 
+For a one-droplet same-day MVP, `RATE_LIMIT_BACKEND=memory` can be used in
+`.env.production` instead of Upstash. This keeps login working without external
+Redis, but it is single-process only and must be replaced before scaling.
+
 Generate `AUTH_SECRET`:
 
 ```bash

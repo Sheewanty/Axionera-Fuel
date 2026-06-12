@@ -107,6 +107,18 @@ describe("production rate limiter (Upstash path)", () => {
     );
   });
 
+  it("uses in-memory limiter in production only when explicitly configured", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("RATE_LIMIT_BACKEND", "memory");
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+
+    const result = await checkRateLimit("ip-prod-memory");
+
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(4);
+  });
+
   it("RateLimitConfigError is an instance of Error", () => {
     const err = new RateLimitConfigError("missing env vars");
     expect(err).toBeInstanceOf(Error);
