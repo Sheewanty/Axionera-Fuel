@@ -150,6 +150,25 @@ export function requireAccess(session: AuthSession, requiredLevel: AccessLevel):
  *
  * @throws AccessDeniedError — caller should catch and return a 403 response or error state
  */
+/**
+ * Asserts a read-only page is allowed to show records for the requested station.
+ *
+ * Tenant-wide memberships use stationId sentinel "" and may read all stations
+ * in their tenant. Station-scoped memberships may only read their own station.
+ */
+export function requireStationScope(session: AuthSession, targetStationId: string): void {
+  if (!targetStationId || targetStationId === "") {
+    throw new AccessDeniedError("A real stationId is required");
+  }
+
+  const membershipStationId = session.user.membershipStationId;
+  if (membershipStationId !== "" && membershipStationId !== targetStationId) {
+    throw new AccessDeniedError(
+      `Station access denied: your membership covers station ${membershipStationId}`
+    );
+  }
+}
+
 export async function requireWriteAccess(
   session: AuthSession,
   opts: { targetStationId?: string } = {}

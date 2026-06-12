@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Text:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import 'tailwindcss';
 
 /* ─── Axionera Design System ─────────────────────────────────────────────── */
@@ -15,7 +15,7 @@
   --ax-surface-2:   #F1F5F9;
   --ax-muted:       #6b7a92;
   --app-font-body:  "Inter", "Segoe UI", Roboto, Arial, sans-serif;
-  --app-font-heading: "DM Serif Text", "Times New Roman", serif;
+  --app-font-heading: "Inter", "Segoe UI", Roboto, Arial, sans-serif;
 }
 
 /* ─── Base Reset ─────────────────────────────────────────────────────────── */
@@ -39,7 +39,7 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--app-font-heading);
-  font-weight: 400;
+  font-weight: 600;
   color: var(--ax-blue);
 }
 
@@ -281,7 +281,7 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--app-font-heading);
   font-size: 1.1rem;
   color: var(--ax-blue);
-  font-weight: 400;
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -429,7 +429,7 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--app-font-heading);
   font-size: 1.3rem;
   color: var(--ax-blue);
-  font-weight: 400;
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -704,7 +704,7 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--app-font-heading);
   font-size: 1.2rem;
   color: var(--ax-blue);
-  font-weight: 400;
+  font-weight: 600;
 }
 
 .modal-close {
@@ -861,7 +861,7 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--app-font-heading);
   font-size: 1.05rem;
   color: var(--ax-blue);
-  font-weight: 400;
+  font-weight: 600;
 }
 
 .dash-panel-sub {
