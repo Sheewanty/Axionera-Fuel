@@ -1,0 +1,17 @@
+node_modules/
+.next/
+dist/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+*.bak
+*.unprotected-backup
+uploads/
+generated-reports/
+runtime-logs/
+.DS_Store
+Thumbs.db

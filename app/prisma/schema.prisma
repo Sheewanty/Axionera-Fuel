@@ -1,0 +1,454 @@
+// Prisma schema for FuelStation OS
+// Every operational table is scoped by tenant_id and station_id
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  // directUrl is used by Prisma Migrate when DATABASE_URL points to a pooler
+  // directUrl = env("DIRECT_URL")
+}
+
+// ─── Tenancy ──────────────────────────────────────────────────────────────────
+
+model Tenant {
+  id                 String   @id @default(cuid())
+  name               String
+  slug               String   @unique
+  subscriptionStatus String   @default("TRIAL") // TRIAL | ACTIVE | SUSPENDED | CANCELLED
+  billingEmail       String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  stations    Station[]
+  memberships Membership[]
+  products    Product[]
+}
+
+model Station {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  code      String
+  location  String?
+  status    String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant          Tenant             @relation(fields: [tenantId], references: [id])
+  // Note: Membership.stationId references this ID but has no Prisma FK relation
+  // (sentinel "" used for tenant-wide memberships — see Membership model comments)
+  pumps           Pump[]
+  nozzles         Nozzle[]
+  tanks           Tank[]
+  dailySessions   DailySession[]
+  pumpReadings    PumpReading[]
+  tankDippings    TankDipping[]
+  discharges      ProductDischarge[]
+  cashCollections CashCollection[]
+  expenditures    Expenditure[]
+  martSales       MartSale[]
+  auditLogs       AuditLog[]
+
+  @@unique([tenantId, code])
+}
+
+// ─── Users & Roles ────────────────────────────────────────────────────────────
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String
+  passwordHash   String?
+  avatarInitials String?
+  status         String   @default("ACTIVE") // ACTIVE | INACTIVE
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  memberships Membership[]
+  accounts    Account[]
+  sessions    Session[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  tenantId  String
+  //
+  // stationId stores the station cuid for station-scoped roles, or "" (empty string)
+  // for tenant-wide roles (OWNER, ADMIN, ACCOUNTANT, AUDITOR).
+  //
+  // WHY NOT NULLABLE: In Postgres, @@unique([tenantId, userId, stationId]) does NOT
+  // prevent duplicate NULLs — NULL != NULL. Making the column non-nullable with a
+  // sentinel makes the unique index reliable.
+  //
+  // WHY NO FK RELATION TO STATION: Prisma cannot express a conditional FK
+  // (only when stationId != ""). The application layer must validate that
+  // stationId is either "" or a valid Station.id belonging to the same tenant.
+  // This is enforced in M2 service methods and seeded correctly by upsertMembership().
+  //
+  stationId String   @default("")
+  userId    String
+  role      String // OWNER | ADMIN | STATION_MANAGER | SUPERVISOR | ATTENDANT | ACCOUNTANT | AUDITOR
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([tenantId, userId, stationId])
+}
+
+// ─── NextAuth ─────────────────────────────────────────────────────────────────
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ─── Products & Prices ────────────────────────────────────────────────────────
+
+model Product {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  category  String   @default("FUEL") // FUEL | LUBRICANT | OTHER
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant             @relation(fields: [tenantId], references: [id])
+  priceHistory PriceHistory[]
+  nozzles      Nozzle[]
+  tanks        Tank[]
+  pumpReadings PumpReading[]
+  tankDippings TankDipping[]
+  discharges   ProductDischarge[]
+}
+
+model PriceHistory {
+  id            String    @id @default(cuid())
+  tenantId      String
+  stationId     String
+  productId     String
+  pricePerLitre Decimal   @db.Decimal(10, 4)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  createdBy     String
+  createdAt     DateTime  @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+// ─── Station Setup ────────────────────────────────────────────────────────────
+
+model Pump {
+  id        String   @id @default(cuid())
+  tenantId  String
+  stationId String
+  name      String
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  station Station  @relation(fields: [stationId], references: [id])
+  nozzles Nozzle[]
+}
+
+model Nozzle {
+  id        String   @id @default(cuid())
+  tenantId  String
+  stationId String
+  pumpId    String
+  productId String
+  name      String
+  meterCode String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  station      Station       @relation(fields: [stationId], references: [id])
+  pump         Pump          @relation(fields: [pumpId], references: [id])
+  product      Product       @relation(fields: [productId], references: [id])
+  pumpReadings PumpReading[]
+}
+
+model Tank {
+  id             String   @id @default(cuid())
+  tenantId       String
+  stationId      String
+  productId      String
+  name           String
+  capacityLitres Decimal  @db.Decimal(10, 2)
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  station           Station            @relation(fields: [stationId], references: [id])
+  product           Product            @relation(fields: [productId], references: [id])
+  tankDippings      TankDipping[]
+  productDischarges ProductDischarge[]
+}
+
+// ─── Daily Operations ─────────────────────────────────────────────────────────
+
+model DailySession {
+  id              String    @id @default(cuid())
+  tenantId        String
+  stationId       String
+  businessDate    DateTime  @db.Date
+  shift           String    @default("DAY") // DAY | NIGHT
+  status          String    @default("OPEN") // OPEN | READY_FOR_REVIEW | APPROVED | REOPENED
+  openedBy        String
+  closedBy        String?
+  openedAt        DateTime  @default(now())
+  closedAt        DateTime?
+  supervisorNotes String?
+
+  station           Station            @relation(fields: [stationId], references: [id])
+  pumpReadings      PumpReading[]
+  tankDippings      TankDipping[]
+  cashCollections   CashCollection[]
+  expenditures      Expenditure[]
+  martSales         MartSale[]
+  productDischarges ProductDischarge[]
+
+  @@unique([tenantId, stationId, businessDate, shift])
+}
+
+model PumpReading {
+  id              String   @id @default(cuid())
+  tenantId        String
+  stationId       String
+  dailySessionId  String
+  businessDate    DateTime @db.Date
+  shift           String
+  pumpId          String
+  nozzleId        String
+  productId       String
+  attendantId     String?
+  previousLitre   Decimal  @db.Decimal(12, 2)
+  currentLitre    Decimal  @db.Decimal(12, 2)
+  litresSold      Decimal  @db.Decimal(12, 2) // server computed
+  pricePerLitre   Decimal  @db.Decimal(10, 4)
+  amountExpected  Decimal  @db.Decimal(12, 2) // server computed
+  cashReceived    Decimal  @db.Decimal(12, 2)
+  gocardAmount    Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
+  couponAmount    Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
+  ghqrAmount      Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
+  creditorsAmount Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
+  variance        Decimal  @db.Decimal(12, 2) // server computed: totalCollected - amountExpected
+  remarks         String?
+  createdBy       String
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  station      Station      @relation(fields: [stationId], references: [id])
+  dailySession DailySession @relation(fields: [dailySessionId], references: [id])
+  nozzle       Nozzle       @relation(fields: [nozzleId], references: [id])
+  product      Product      @relation(fields: [productId], references: [id])
+
+  @@unique([tenantId, dailySessionId, nozzleId])
+}
+
+model TankDipping {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  stationId          String
+  dailySessionId     String
+  businessDate       DateTime @db.Date
+  tankId             String
+  productId          String
+  openingStockLitres Decimal  @db.Decimal(12, 2)
+  receiptsLitres     Decimal  @default(0) @db.Decimal(12, 2)
+  closingDipCm       Decimal? @db.Decimal(8, 2)
+  closingStockLitres Decimal  @db.Decimal(12, 2)
+  meterSoldLitres    Decimal  @db.Decimal(12, 2) // server computed
+  varianceLitres     Decimal  @db.Decimal(12, 2) // server computed
+  waterTestStatus    String   @default("CLEAR") // CLEAR | WATER_DETECTED
+  supervisorId       String?
+  remarks            String?
+  createdBy          String
+  updatedBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  station      Station      @relation(fields: [stationId], references: [id])
+  dailySession DailySession @relation(fields: [dailySessionId], references: [id])
+  tank         Tank         @relation(fields: [tankId], references: [id])
+  product      Product      @relation(fields: [productId], references: [id])
+
+  @@unique([tenantId, dailySessionId, tankId])
+}
+
+model ProductDischarge {
+  id                         String   @id @default(cuid())
+  tenantId                   String
+  stationId                  String
+  dailySessionId             String
+  businessDate               DateTime @db.Date
+  tankId                     String
+  productId                  String
+  supplierName               String
+  invoiceNumber              String
+  sealNumbers                String?
+  sealNumbersContinued       String?
+  compartmentNumber          String?
+  invoiceMeasurement         Decimal  @db.Decimal(12, 2)
+  stationMeasurement         Decimal? @db.Decimal(12, 2)
+  productDischargedLitres    Decimal  @db.Decimal(12, 2)
+  vehicleRegistrationNumber  String?
+  stationSupervisorName      String?
+  couplingHeightCm           Decimal? @db.Decimal(8, 2)
+  calibrationCertificate     String?
+  tbar                       Decimal? @db.Decimal(8, 2)
+  topUpLitres                Decimal  @default(0) @db.Decimal(12, 2)
+  beforeTankLitres           Decimal  @db.Decimal(12, 2)
+  expectedTankAfterDischarge Decimal  @db.Decimal(12, 2) // server computed
+  afterTankLitres            Decimal  @db.Decimal(12, 2)
+  dischargeVarianceLitres    Decimal  @db.Decimal(12, 2) // server computed
+  driverName                 String?
+  dealerName                 String?
+  remarks                    String?
+  createdBy                  String
+  updatedBy                  String?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  station      Station      @relation(fields: [stationId], references: [id])
+  product      Product      @relation(fields: [productId], references: [id])
+  dailySession DailySession @relation(fields: [dailySessionId], references: [id])
+  tank         Tank         @relation(fields: [tankId], references: [id])
+
+  @@index([tenantId, dailySessionId])
+  @@index([tenantId, dailySessionId, tankId])
+}
+
+model CashCollection {
+  id                      String    @id @default(cuid())
+  tenantId                String
+  stationId               String
+  dailySessionId          String
+  businessDate            DateTime  @db.Date
+  amountToBank            Decimal   @db.Decimal(12, 2)
+  bankCollectionDate      DateTime? @db.Date
+  bankCollectionReference String?
+  expectedCash            Decimal   @db.Decimal(12, 2) // server computed
+  variance                Decimal   @db.Decimal(12, 2) // server computed
+  bankSignatureName       String?
+  supervisorSignatureName String?
+  remarks                 String?
+  createdBy               String
+  updatedBy               String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  station      Station      @relation(fields: [stationId], references: [id])
+  dailySession DailySession @relation(fields: [dailySessionId], references: [id])
+}
+
+model Expenditure {
+  id               String   @id @default(cuid())
+  tenantId         String
+  stationId        String
+  dailySessionId   String?
+  businessDate     DateTime @db.Date
+  voucherReference String?
+  category         String
+  amount           Decimal  @db.Decimal(12, 2)
+  paymentToBank    Decimal  @default(0) @db.Decimal(12, 2) // reduces net expenditure
+  paidBy           String
+  approvedBy       String?
+  receiptAttached  Boolean  @default(false)
+  description      String?
+  createdBy        String
+  updatedBy        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  station      Station       @relation(fields: [stationId], references: [id])
+  dailySession DailySession? @relation(fields: [dailySessionId], references: [id])
+}
+
+model MartSale {
+  id             String   @id @default(cuid())
+  tenantId       String
+  stationId      String
+  dailySessionId String
+  businessDate   DateTime @db.Date
+  openingCash    Decimal  @default(0) @db.Decimal(12, 2)
+  posSales       Decimal  @default(0) @db.Decimal(12, 2)
+  cashSales      Decimal  @default(0) @db.Decimal(12, 2)
+  mobileMoney    Decimal  @default(0) @db.Decimal(12, 2)
+  returns        Decimal  @default(0) @db.Decimal(12, 2)
+  netMartSales   Decimal  @db.Decimal(12, 2) // server computed
+  cashCount      Decimal  @default(0) @db.Decimal(12, 2)
+  variance       Decimal  @db.Decimal(12, 2) // server computed
+  remarks        String?
+  createdBy      String
+  updatedBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  station      Station      @relation(fields: [stationId], references: [id])
+  dailySession DailySession @relation(fields: [dailySessionId], references: [id])
+
+  @@unique([tenantId, dailySessionId])
+}
+
+// ─── Audit ────────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  stationId   String?
+  actorUserId String
+  entityType  String
+  entityId    String
+  action      String // CREATE | UPDATE | DELETE | APPROVE | REOPEN
+  beforeJson  Json?
+  afterJson   Json?
+  createdAt   DateTime @default(now())
+
+  station Station? @relation(fields: [stationId], references: [id])
+
+  // Query patterns:
+  //   audit trail by tenant, newest-first
+  //   entity history: all events on a specific record
+  //   actor history: what did this user do?
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entityType, entityId])
+  @@index([actorUserId])
+}

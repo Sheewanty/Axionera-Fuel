@@ -1,0 +1,62 @@
+services:
+  app:
+    image: ${APP_IMAGE:-ghcr.io/sheewanty/fuelstation-os:latest}
+    env_file:
+      - .env.production
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    networks:
+      - fuelstation
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: fuelstation
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: fuelstation_os
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fuelstation -d fuelstation_os"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fuelstation
+
+  caddy:
+    image: caddy:2-alpine
+    env_file:
+      - .env.production
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - fuelstation
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  fuelstation:
+    driver: bridge

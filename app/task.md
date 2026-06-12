@@ -1,0 +1,7 @@
+- [x] **Database Schema**: Added `dailySessionId`, `tankId`, relations, and composite indexes to `ProductDischarge`.
+- [x] **Service Layer**: Created `src/lib/db/product-discharge.service.ts` with explicit `session.status === "OPEN" || session.status === "REOPENED"` checks and logic for expected variance calculations using `calcExpectedTankAfterDischarge` and `calcDischargeVariance`.
+- [x] **Server Actions**: Created `src/lib/actions/product-discharge.actions.ts` using `withMutation()` for transactional audit logging.
+- [x] **Daily Close Validation**: Updated `src/lib/db/daily-session.service.ts` to block session closure if `receiptsLitres > 0` but no product discharges are found for that tank, or if total receipts vs discharged+topup mismatches by `> 0.01L`.
+- [x] **UI Pages**: Built `src/app/(dashboard)/forecourt/product-discharge/page.tsx` and `ProductDischargeClient.tsx`. Implemented station switching fallback with `resolveOrRedirectStation`. Added the "Record Discharge" modal form.
+- [x] **Daily Close Aggregation**: Added `productDischarges` inclusion and calculated `totalDischargeVariance` in `src/app/(dashboard)/daily-close/page.tsx`.
+- [x] **Testing**: Implemented `product-discharge.service.test.ts` and updated `daily-session.service.test.ts`. Verified all 179 tests pass.

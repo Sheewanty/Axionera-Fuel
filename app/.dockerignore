@@ -1,0 +1,16 @@
+node_modules
+.next
+coverage
+build
+dist
+.env
+.env*
+!.env.local.example
+dev-server.log
+*.log
+*.tsbuildinfo
+.git
+.github
+docs
+task.md
+walkthrough.md

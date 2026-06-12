@@ -1,0 +1,205 @@
+"use client";
+
+import { useMemo } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import {
+  ChevronDown,
+  Gauge,
+  Fuel,
+  Building2,
+  Store,
+  Settings2,
+  BarChart3,
+  Shield,
+  Pin,
+  PinOff,
+} from "lucide-react";
+import { filterNavForRole, type Role, type NavGroup } from "@/lib/nav-config";
+import { withStationParam } from "@/lib/station-utils";
+import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
+
+// ─── Icon maps ────────────────────────────────────────────────────────────────
+const GROUP_ICONS: Record<string, React.ElementType> = {
+  "gauge-high": Gauge,
+  "gas-pump": Fuel,
+  "building-columns": Building2,
+  "store": Store,
+  "sliders": Settings2,
+  "chart-line": BarChart3,
+  "shield-halved": Shield,
+};
+
+const ITEM_ICONS: Record<string, React.ElementType> = {
+  "chart-pie": BarChart3,
+  "tachometer-alt": Gauge,
+  "clipboard-check": Gauge,
+  "bell": Gauge,
+  "gauge": Gauge,
+  "flask": Gauge,
+  "truck-ramp-box": Gauge,
+  "triangle-exclamation": Gauge,
+  "money-bill-wave": Building2,
+  "landmark": Building2,
+  "receipt": Gauge,
+  "scale-balanced": Gauge,
+  "cash-register": Store,
+  "arrow-rotate-left": Gauge,
+  "coins": Building2,
+  "chart-bar": BarChart3,
+  "building": Building2,
+  "map-location-dot": Gauge,
+  "tags": Gauge,
+  "plug": Gauge,
+  "database": Gauge,
+  "users-gear": Gauge,
+  "calendar-day": Gauge,
+  "chart-column": BarChart3,
+  "droplet-slash": Gauge,
+  "file-invoice-dollar": Gauge,
+  "file-export": Gauge,
+  "credit-card": Gauge,
+  "clock-rotate-left": Gauge,
+  "plug-circle-check": Gauge,
+  "lock": Shield,
+};
+
+function GroupIcon({ name }: { name: string }) {
+  const Icon = GROUP_ICONS[name] ?? Gauge;
+  return <Icon size={16} />;
+}
+
+function ItemIcon({ name }: { name: string }) {
+  const Icon = ITEM_ICONS[name] ?? Gauge;
+  return <Icon size={14} />;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const NAV_STORAGE_KEY = "fuelstation_nav_open";
+const PIN_STORAGE_KEY = "fuelstation_sidebar_pinned";
+
+interface SidebarProps {
+  role: Role;
+  fallbackStationId: string | null;
+}
+
+export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const navGroups = useMemo(() => filterNavForRole(role), [role]);
+
+  const currentStationId = searchParams.get("stationId") ?? fallbackStationId;
+
+  // Persisted sidebar pin state
+  const [isPinned, setIsPinned] = useLocalStorage(PIN_STORAGE_KEY, false);
+
+  // Persisted open group — single-accordion, one open at a time
+  // The empty dep array is intentional: this is a mount-time default only.
+  // useLocalStorage will take over from here and ignore subsequent changes.
+  const defaultOpen = useMemo(() => {
+    const active = navGroups.find((g) =>
+      g.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
+    );
+    return active?.id ?? navGroups[0]?.id ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally stable — only used as default for useLocalStorage
+
+
+  const [openGroupId, setOpenGroupId] = useLocalStorage<string | null>(
+    NAV_STORAGE_KEY,
+    defaultOpen
+  );
+
+  // Derive active group from pathname on each render — no effect needed
+  const activeGroupId = useMemo(() => {
+    const active = navGroups.find((g) =>
+      g.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
+    );
+    // If the active group differs from openGroupId, auto-expand it
+    return active?.id ?? null;
+  }, [pathname, navGroups]);
+
+  // Open group is: the explicitly toggled one, or the route-active one if they match
+  const effectiveOpenId = openGroupId ?? activeGroupId;
+
+  function toggleGroup(id: string) {
+    setOpenGroupId((prev) => (prev === id ? null : id));
+  }
+
+  function togglePin() {
+    setIsPinned((prev) => !prev);
+  }
+
+  return (
+    <aside className={`sidebar${isPinned ? " expanded" : ""}`}>
+      {/* Logo mark */}
+      <div className="sidebar-logo" role="img" aria-label="FuelStation OS logo">
+        <span>FS</span>
+      </div>
+
+      {/* Nav menu */}
+      <ul className="nav-menu" role="navigation" aria-label="Main navigation">
+        {navGroups.map((group: NavGroup) => {
+          const isExpanded = effectiveOpenId === group.id;
+          return (
+            <li key={group.id} className={`nav-group${isExpanded ? " expanded" : ""}`}>
+              <div
+                className="nav-group-header"
+                onClick={() => toggleGroup(group.id)}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isExpanded}
+                onKeyDown={(e) => e.key === "Enter" && toggleGroup(group.id)}
+              >
+                <span className="nav-group-icon">
+                  <GroupIcon name={group.icon} />
+                </span>
+                <span className="nav-group-label">{group.label}</span>
+                <ChevronDown
+                  size={12}
+                  className="nav-group-label"
+                  style={{
+                    marginLeft: "auto",
+                    transform: isExpanded ? "rotate(180deg)" : "none",
+                    transition: "transform 0.2s",
+                    flexShrink: 0,
+                  }}
+                />
+              </div>
+              <ul className="nav-group-items">
+                {group.items.map((item) => {
+                  const isActive =
+                    pathname === item.href || pathname.startsWith(item.href + "/");
+                  
+                  // Append stationId if item is stationScoped
+                  const hrefWithStation = withStationParam(item.href, currentStationId, item.stationScoped);
+
+                  return (
+                    <li key={item.href} className={`nav-item${isActive ? " active" : ""}`}>
+                      <Link href={hrefWithStation} className="nav-item-link">
+                        <span className="nav-item-icon">
+                          <ItemIcon name={item.icon} />
+                        </span>
+                        <span className="nav-item-label">{item.label}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* Pin toggle */}
+      <button
+        className={`sidebar-pin${isPinned ? " pinned" : ""}`}
+        onClick={togglePin}
+        title={isPinned ? "Unpin sidebar" : "Pin sidebar open"}
+        aria-label={isPinned ? "Unpin sidebar" : "Pin sidebar open"}
+      >
+        {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+      </button>
+    </aside>
+  );
+}

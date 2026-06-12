@@ -1,0 +1,111 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare image name
+        id: image
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "name=ghcr.io/${owner}/fuelstation-os:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./app
+          push: true
+          tags: ${{ steps.image.outputs.name }}
+
+      - name: Prepare Droplet directory
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          script: |
+            set -eu
+            sudo mkdir -p /opt/fuelstation-os/backups
+            sudo chown -R "$USER":"$USER" /opt/fuelstation-os
+
+      - name: Copy deployment files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          source: "deploy/docker-compose.prod.yml,deploy/Caddyfile"
+          target: "/opt/fuelstation-os"
+
+      - name: Deploy on Droplet
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          APP_IMAGE: ${{ steps.image.outputs.name }}
+          APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          envs: APP_IMAGE,APP_DOMAIN,POSTGRES_PASSWORD,AUTH_SECRET,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN,GHCR_USERNAME,GHCR_TOKEN
+          script: |
+            set -eu
+            cd /opt/fuelstation-os
+
+            mv -f deploy/docker-compose.prod.yml docker-compose.yml
+            mv -f deploy/Caddyfile Caddyfile
+            rmdir deploy || true
+
+            cat > .env.production <<EOF
+            APP_DOMAIN=${APP_DOMAIN}
+            APP_IMAGE=${APP_IMAGE}
+            POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+            DATABASE_URL=postgresql://fuelstation:${POSTGRES_PASSWORD}@postgres:5432/fuelstation_os
+            AUTH_SECRET=${AUTH_SECRET}
+            AUTH_URL=https://${APP_DOMAIN}
+            AUTH_TRUST_HOST=true
+            NODE_ENV=production
+            UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}
+            UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
+            EOF
+
+            chmod 600 .env.production
+
+            if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
+              echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
+            fi
+
+            docker compose --env-file .env.production pull app
+            docker compose --env-file .env.production up -d postgres
+            docker compose --env-file .env.production run --rm app npm run db:migrate
+            docker compose --env-file .env.production up -d
+            docker compose --env-file .env.production ps
+
+            sleep 8
+            curl -fsS "https://${APP_DOMAIN}/api/health"
