@@ -7,7 +7,12 @@ import PageTitle from "@/components/ui/PageTitle";
 import KpiCard from "@/components/ui/KpiCard";
 import VarianceBadge from "@/components/ui/VarianceBadge";
 import { formatCurrency, formatLitres } from "@/lib/calculations";
-import { closeSessionAction, approveSessionAction, reopenSessionAction } from "@/lib/actions/daily-session.actions";
+import {
+  openTodaySessionAction,
+  closeSessionAction,
+  approveSessionAction,
+  reopenSessionAction,
+} from "@/lib/actions/daily-session.actions";
 
 type DailySessionProps = {
   id: string;
@@ -21,6 +26,11 @@ type SummaryProps = {
   totalLitresSold: number;
   totalPumpExpected: number;
   totalPumpVariance: number;
+  totalPumpCash: number;
+  totalHqSettlement: number;
+  totalNetExpenditure: number;
+  totalMartNetSales: number;
+  totalMartCashVariance: number;
   expectedCash: number;
   totalBanked: number;
   bankingVariance: number;
@@ -37,7 +47,7 @@ export default function DailyCloseClient({
   userRoles,
 }: {
   station: Station;
-  dailySession: DailySessionProps;
+  dailySession: DailySessionProps | null;
   summary: SummaryProps;
   userRoles: string[];
 }) {
@@ -45,11 +55,22 @@ export default function DailyCloseClient({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReopenModalOpen, setIsReopenModalOpen] = useState(false);
 
-  const canApprove = userRoles.some(r => ["STATION_MANAGER", "ADMIN", "OWNER"].includes(r));
-  const canReopen = userRoles.some(r => ["ADMIN", "OWNER"].includes(r));
+  const canOpen = userRoles.some((r) =>
+    ["SUPERVISOR", "STATION_MANAGER", "ADMIN", "OWNER"].includes(r)
+  );
+  const canApprove = userRoles.some((r) => ["STATION_MANAGER", "ADMIN", "OWNER"].includes(r));
+  const canReopen = userRoles.some((r) => ["ADMIN", "OWNER"].includes(r));
+
+  const handleOpen = async () => {
+    setIsSubmitting(true);
+    setError(null);
+    const res = await openTodaySessionAction(station.id);
+    if (!res.success) setError(res.error || "Failed to open today's session");
+    setIsSubmitting(false);
+  };
 
   const handleClose = async () => {
-    if (!summary.canClose) return;
+    if (!dailySession || !summary.canClose) return;
     setIsSubmitting(true);
     setError(null);
     const res = await closeSessionAction(station.id, dailySession.id);
@@ -58,6 +79,7 @@ export default function DailyCloseClient({
   };
 
   const handleApprove = async () => {
+    if (!dailySession) return;
     setIsSubmitting(true);
     setError(null);
     const res = await approveSessionAction(station.id, dailySession.id);
@@ -67,11 +89,12 @@ export default function DailyCloseClient({
 
   const handleReopen = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!dailySession) return;
     setIsSubmitting(true);
     setError(null);
     const formData = new FormData(e.currentTarget);
     const reason = formData.get("reason") as string;
-    
+
     const res = await reopenSessionAction(station.id, dailySession.id, reason);
     if (!res.success) setError(res.error || "Failed to reopen session");
     else setIsReopenModalOpen(false);
@@ -82,13 +105,32 @@ export default function DailyCloseClient({
     <>
       <PageTitle
         eyebrow="Daily Close"
-        title={`${station.name} — ${dailySession.businessDate}`}
-        subtitle={`${dailySession.shift} Shift · Status: ${dailySession.status.replace(/_/g, ' ')}`}
+        title={
+          dailySession
+            ? `${station.name} - ${dailySession.businessDate}`
+            : `${station.name} - No session open today`
+        }
+        subtitle={
+          dailySession
+            ? `${dailySession.shift} Shift - Status: ${dailySession.status.replace(/_/g, " ")}`
+            : "Open today's operating session before recording daily transactions."
+        }
         actions={
           <>
-            {(dailySession.status === "OPEN" || dailySession.status === "REOPENED") && (
-              <button 
-                onClick={handleClose} 
+            {!dailySession && canOpen && (
+              <button
+                onClick={handleOpen}
+                disabled={isSubmitting}
+                className="btn btn-gold disabled:opacity-50"
+              >
+                <Clock size={16} className="mr-2 inline" />
+                Open Today
+              </button>
+            )}
+
+            {dailySession && (dailySession.status === "OPEN" || dailySession.status === "REOPENED") && (
+              <button
+                onClick={handleClose}
                 disabled={isSubmitting || !summary.canClose}
                 className="btn btn-outline disabled:opacity-50"
               >
@@ -97,9 +139,9 @@ export default function DailyCloseClient({
               </button>
             )}
 
-            {dailySession.status === "READY_FOR_REVIEW" && canApprove && (
-              <button 
-                onClick={handleApprove} 
+            {dailySession?.status === "READY_FOR_REVIEW" && canApprove && (
+              <button
+                onClick={handleApprove}
                 disabled={isSubmitting}
                 className="btn btn-gold disabled:opacity-50"
               >
@@ -108,9 +150,9 @@ export default function DailyCloseClient({
               </button>
             )}
 
-            {dailySession.status === "APPROVED" && canReopen && (
-              <button 
-                onClick={() => setIsReopenModalOpen(true)} 
+            {dailySession?.status === "APPROVED" && canReopen && (
+              <button
+                onClick={() => setIsReopenModalOpen(true)}
                 disabled={isSubmitting}
                 className="btn btn-outline text-red-600 border-red-600 hover:bg-red-50"
               >
@@ -122,14 +164,19 @@ export default function DailyCloseClient({
         }
       />
 
-      {error && (
-        <div className="bg-red-50 text-red-600 p-4 rounded shadow mb-6">
-          {error}
+      {error && <div className="bg-red-50 text-red-600 p-4 rounded shadow mb-6">{error}</div>}
+
+      {!dailySession && (
+        <div className="bg-white border border-slate-200 p-6 rounded shadow mb-6">
+          <h3 className="font-semibold text-slate-900">No daily session is open</h3>
+          <p className="text-sm text-slate-600 mt-1">
+            Open today&apos;s session to enable pump readings, tank dipping, discharge,
+            expenditure, mart sales, and cash collection for this station.
+          </p>
         </div>
       )}
 
-      {/* Validation Warning */}
-      {!summary.canClose && (dailySession.status === "OPEN" || dailySession.status === "REOPENED") && (
+      {dailySession && !summary.canClose && (dailySession.status === "OPEN" || dailySession.status === "REOPENED") && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded shadow mb-6 flex items-start">
           <AlertTriangle className="mr-3 mt-0.5 text-yellow-600" size={20} />
           <div>
@@ -144,7 +191,7 @@ export default function DailyCloseClient({
         </div>
       )}
 
-      {dailySession.supervisorNotes && (
+      {dailySession?.supervisorNotes && (
         <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded shadow mb-6">
           <h4 className="font-semibold text-sm">Supervisor Notes</h4>
           <p className="whitespace-pre-wrap text-sm mt-1">{dailySession.supervisorNotes}</p>
@@ -152,11 +199,7 @@ export default function DailyCloseClient({
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard
-          label="Total Volume Sold"
-          value={formatLitres(summary.totalLitresSold)}
-          icon={<Clock size={20} />}
-        />
+        <KpiCard label="Total Volume Sold" value={formatLitres(summary.totalLitresSold)} icon={<Clock size={20} />} />
         <KpiCard
           label="Pump Variance"
           value={formatCurrency(summary.totalPumpVariance)}
@@ -197,6 +240,32 @@ export default function DailyCloseClient({
             <li className="flex justify-between items-center border-b pb-2">
               <span className="text-gray-600">Physical Cash Variance</span>
               <VarianceBadge value={summary.bankingVariance} format={formatCurrency} />
+            </li>
+            <li className="flex justify-between items-center border-b pb-2">
+              <span className="text-gray-600">Mart Cash Variance</span>
+              <VarianceBadge value={summary.totalMartCashVariance} format={formatCurrency} />
+            </li>
+          </ul>
+        </div>
+
+        <div className="bg-white p-6 rounded shadow">
+          <h3 className="text-lg font-semibold mb-4">Cash Position</h3>
+          <ul className="space-y-4">
+            <li className="flex justify-between items-center border-b pb-2">
+              <span className="text-gray-600">Pump Physical Cash</span>
+              <span className="font-medium">{formatCurrency(summary.totalPumpCash)}</span>
+            </li>
+            <li className="flex justify-between items-center border-b pb-2">
+              <span className="text-gray-600">HQ-Direct Sales</span>
+              <span className="font-medium">{formatCurrency(summary.totalHqSettlement)}</span>
+            </li>
+            <li className="flex justify-between items-center border-b pb-2">
+              <span className="text-gray-600">Net Expenditure</span>
+              <span className="font-medium">{formatCurrency(summary.totalNetExpenditure)}</span>
+            </li>
+            <li className="flex justify-between items-center border-b pb-2">
+              <span className="text-gray-600">Mart Net Sales</span>
+              <span className="font-medium">{formatCurrency(summary.totalMartNetSales)}</span>
             </li>
           </ul>
         </div>

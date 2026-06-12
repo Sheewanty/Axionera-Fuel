@@ -2,13 +2,37 @@
 
 import { revalidatePath } from "next/cache";
 import { withMutation, withApproval } from "../mutation";
-import { closeSession, approveSession, reopenSession } from "../db/daily-session.service";
+import { openTodaySession, closeSession, approveSession, reopenSession } from "../db/daily-session.service";
 import { AuthSession, requireRole } from "../session";
 import { Db } from "../db/types";
 
 export type ActionResponse = {
   success: boolean;
   error?: string;
+};
+
+export const openTodaySessionAction = async (stationId: string): Promise<ActionResponse> => {
+  const mutation = withMutation(
+    {
+      entityType: "DailySession",
+      action: "CREATE",
+      getStationId: () => stationId,
+      getEntityId: (result) => result.id,
+      roles: ["SUPERVISOR", "STATION_MANAGER", "ADMIN", "OWNER"],
+    },
+    async (session: AuthSession, tx: Db) => {
+      return openTodaySession(session.user.tenantId, stationId, session.user.id, tx);
+    }
+  );
+
+  try {
+    await mutation();
+    revalidatePath("/daily-close");
+    revalidatePath("/command-center");
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : "An error occurred" };
+  }
 };
 
 export const closeSessionAction = async (stationId: string, sessionId: string): Promise<ActionResponse> => {

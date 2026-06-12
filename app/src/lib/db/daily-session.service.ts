@@ -1,6 +1,57 @@
 import { DailySession } from "@prisma/client";
 import { Db } from "./types";
 
+function businessDateToday(): Date {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+export async function openTodaySession(
+  tenantId: string,
+  stationId: string,
+  userId: string,
+  db: Db
+): Promise<DailySession> {
+  const station = await db.station.findFirst({
+    where: { id: stationId, tenantId, status: "ACTIVE" },
+  });
+
+  if (!station) {
+    throw new Error("Station not found or inactive");
+  }
+
+  const businessDate = businessDateToday();
+  const existing = await db.dailySession.findUnique({
+    where: {
+      tenantId_stationId_businessDate_shift: {
+        tenantId,
+        stationId,
+        businessDate,
+        shift: "DAY",
+      },
+    },
+  });
+
+  if (existing) {
+    if (existing.status === "APPROVED") {
+      throw new Error("Today's session is already approved and cannot be reopened from the opening flow");
+    }
+    return existing;
+  }
+
+  return db.dailySession.create({
+    data: {
+      tenantId,
+      stationId,
+      businessDate,
+      shift: "DAY",
+      status: "OPEN",
+      openedBy: userId,
+    },
+  });
+}
+
 export async function closeSession(
   tenantId: string,
   stationId: string,
@@ -15,8 +66,8 @@ export async function closeSession(
       tankDippings: true,
       cashCollections: true,
       productDischarges: true,
-      // expenditures: true, // TODO: Expenditure validation
-      // martSales: true, // TODO: validate mart sales
+      expenditures: true,
+      martSales: true,
     },
   });
 
@@ -41,6 +92,9 @@ export async function closeSession(
   }
   if (session.cashCollections.length === 0) {
     throw new Error("Cannot close session: No cash collections recorded");
+  }
+  if (session.martSales.length === 0) {
+    throw new Error("Cannot close session: No mart sales summary recorded");
   }
 
   // Validation: Product Discharge vs Tank Dipping receipts

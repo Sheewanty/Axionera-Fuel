@@ -1,8 +1,62 @@
 import { describe, it, expect, vi } from "vitest";
-import { closeSession, approveSession, reopenSession } from "../daily-session.service";
+import { openTodaySession, closeSession, approveSession, reopenSession } from "../daily-session.service";
 import { Db } from "../types";
 
 describe("DailySession Service", () => {
+  describe("openTodaySession", () => {
+    it("creates today's DAY session for an active station", async () => {
+      const mockDb = {
+        station: {
+          findFirst: vi.fn().mockResolvedValue({ id: "station_1", tenantId: "tenant_1", status: "ACTIVE" }),
+        },
+        dailySession: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          create: vi.fn().mockResolvedValue({ id: "sess_1", status: "OPEN", shift: "DAY" }),
+        },
+      };
+
+      const res = await openTodaySession("tenant_1", "station_1", "user_1", mockDb as unknown as Db);
+
+      expect(res.status).toBe("OPEN");
+      expect(mockDb.dailySession.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          tenantId: "tenant_1",
+          stationId: "station_1",
+          shift: "DAY",
+          status: "OPEN",
+          openedBy: "user_1",
+        }),
+      });
+    });
+
+    it("returns an existing unapproved session for today", async () => {
+      const existing = { id: "sess_1", status: "REOPENED" };
+      const mockDb = {
+        station: {
+          findFirst: vi.fn().mockResolvedValue({ id: "station_1", tenantId: "tenant_1", status: "ACTIVE" }),
+        },
+        dailySession: {
+          findUnique: vi.fn().mockResolvedValue(existing),
+          create: vi.fn(),
+        },
+      };
+
+      const res = await openTodaySession("tenant_1", "station_1", "user_1", mockDb as unknown as Db);
+
+      expect(res).toBe(existing);
+      expect(mockDb.dailySession.create).not.toHaveBeenCalled();
+    });
+
+    it("rejects inactive or cross-tenant stations", async () => {
+      const mockDb = {
+        station: { findFirst: vi.fn().mockResolvedValue(null) },
+      };
+
+      await expect(openTodaySession("tenant_1", "station_1", "user_1", mockDb as unknown as Db))
+        .rejects.toThrow("Station not found or inactive");
+    });
+  });
+
   describe("closeSession", () => {
     it("updates status to READY_FOR_REVIEW if valid", async () => {
       const mockDb = {
@@ -16,6 +70,7 @@ describe("DailySession Service", () => {
             tankDippings: [{ id: "td_1", receiptsLitres: 0 }],
             cashCollections: [{ id: "cc_1" }],
             productDischarges: [],
+            martSales: [{ id: "ms_1" }],
           }),
           update: vi.fn().mockResolvedValue({ id: "sess_1", status: "READY_FOR_REVIEW" }),
         },
@@ -50,6 +105,7 @@ describe("DailySession Service", () => {
             pumpReadings: [],
             tankDippings: [],
             cashCollections: [],
+            martSales: [],
           }),
         },
       };
@@ -69,6 +125,7 @@ describe("DailySession Service", () => {
               tankDippings: [{ id: "td_1", receiptsLitres: 0 }],
               cashCollections: [{ id: "cc_1" }],
               productDischarges: [],
+              martSales: [{ id: "ms_1" }],
             }),
           },
         };
@@ -88,6 +145,7 @@ describe("DailySession Service", () => {
               tankDippings: [{ tankId: "tank_1", receiptsLitres: 1000 }],
               cashCollections: [{ id: "cc_1" }],
               productDischarges: [],
+              martSales: [{ id: "ms_1" }],
             }),
           },
         };
@@ -107,6 +165,7 @@ describe("DailySession Service", () => {
               tankDippings: [{ tankId: "tank_1", receiptsLitres: 5000 }],
               cashCollections: [{ id: "cc_1" }],
               productDischarges: [{ tankId: "tank_1", productDischargedLitres: 4950, topUpLitres: 0 }],
+              martSales: [{ id: "ms_1" }],
             }),
           },
         };
@@ -126,6 +185,7 @@ describe("DailySession Service", () => {
               tankDippings: [{ tankId: "tank_1", receiptsLitres: 5000 }],
               cashCollections: [{ id: "cc_1" }],
               productDischarges: [{ tankId: "tank_1", productDischargedLitres: 4950, topUpLitres: 50.005 }], // total 5000.005, diff is 0.005 <= 0.01
+              martSales: [{ id: "ms_1" }],
             }),
             update: vi.fn().mockResolvedValue({ status: "READY_FOR_REVIEW" }),
           },
@@ -133,6 +193,26 @@ describe("DailySession Service", () => {
         
         const res = await closeSession("tenant_1", "station_1", "user_1", "sess_1", mockDb as unknown as Db);
         expect(res.status).toBe("READY_FOR_REVIEW");
+      });
+
+      it("throws if mart sales summary is missing", async () => {
+        const mockDb = {
+          dailySession: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "sess_1",
+              tenantId: "tenant_1",
+              stationId: "station_1",
+              status: "OPEN",
+              pumpReadings: [{ id: "pr_1" }],
+              tankDippings: [{ id: "td_1", receiptsLitres: 0 }],
+              cashCollections: [{ id: "cc_1" }],
+              productDischarges: [],
+              martSales: [],
+            }),
+          },
+        };
+        await expect(closeSession("tenant_1", "station_1", "user_1", "sess_1", mockDb as unknown as Db))
+          .rejects.toThrow("Cannot close session: No mart sales summary recorded");
       });
     });
 
