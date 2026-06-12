@@ -9,6 +9,11 @@ on:
 jobs:
   app:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://fuelstation:fuelstation@localhost:5432/fuelstation_os
+      AUTH_SECRET: ci-only-auth-secret-ci-only-auth-secret
+      AUTH_URL: http://localhost:3000
+      NODE_ENV: test
     defaults:
       run:
         working-directory: app
