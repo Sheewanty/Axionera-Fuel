@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Edit, Plus, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -74,6 +75,7 @@ function errorMessage(error: unknown): string {
 }
 
 export default function ExpenditureClient({ station, dailySession, expenditures }: Props) {
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ExpenditureProps | null>(null);
   const [form, setForm] = useState<FormState>(blankForm);
@@ -152,6 +154,7 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
       }
 
       setIsModalOpen(false);
+      router.refresh();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -177,6 +180,7 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
       }
 
       setDeleteTarget(null);
+      router.refresh();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -185,36 +189,42 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
   };
 
   return (
-    <div className="mt-6 space-y-6">
-      <div className="bg-white p-6 rounded shadow flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">Expense Register</h2>
-          <p className="text-gray-600">
-            {dailySession
-              ? `${station.name} | ${dailySession.businessDate} | ${dailySession.shift} Shift`
-              : `${station.name} | No active session found`}
-          </p>
-          <p className="text-sm text-gray-500 mt-1">
-            Session-linked net expenditure: {formatCurrency(totalNetExpenditure)}
-          </p>
-        </div>
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800"
-        >
+    <>
+      <div style={{ marginBottom: "20px" }}>
+        <button className="btn btn-primary" onClick={openCreate}>
           <Plus size={16} />
           Add Expenditure
         </button>
       </div>
 
       {error && (
-        <div className="bg-red-50 text-red-600 p-3 rounded border border-red-200 text-sm">
+        <div style={{ color: "var(--ax-red)", marginBottom: 14, fontSize: 14 }}>
           {error}
         </div>
       )}
 
-      <div className="bg-white rounded shadow overflow-x-auto">
-        <table className="w-full text-left border-collapse text-sm">
+      <div
+        style={{
+          background: "white",
+          border: "1px solid var(--ax-border)",
+          borderRadius: 8,
+          marginBottom: 20,
+          padding: 16,
+        }}
+      >
+        <div style={{ color: "var(--ax-slate-500)", fontSize: 13, fontWeight: 600, textTransform: "uppercase" }}>
+          Expense Register
+        </div>
+        <div style={{ color: "var(--ax-blue)", fontSize: 24, fontWeight: 700, marginTop: 6 }}>
+          {formatCurrency(totalNetExpenditure)}
+        </div>
+        <div style={{ color: "var(--ax-slate-500)", fontSize: 14, marginTop: 4 }}>
+          Session-linked net expenditure for {dailySession ? `${station.name} | ${dailySession.businessDate} | ${dailySession.shift} Shift` : station.name}
+        </div>
+      </div>
+
+      <div style={{ background: "white", border: "1px solid var(--ax-border)", borderRadius: 8, overflowX: "auto" }}>
+        <table className="data-table">
           <thead>
             <tr className="bg-gray-100">
               <th className="p-3 border-b">Scope</th>
@@ -230,7 +240,7 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
           <tbody>
             {expenditures.length === 0 ? (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-gray-500">
+                <td colSpan={8} style={{ padding: 28, textAlign: "center", color: "var(--ax-slate-500)" }}>
                   No expenditures recorded for this station.
                 </td>
               </tr>
@@ -240,33 +250,39 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
                 const locked = Boolean(expense.dailySessionId) && !sessionWritable;
 
                 return (
-                  <tr key={expense.id} className="hover:bg-gray-50">
-                    <td className="p-3 border-b">
-                      <span className={`rounded-full px-2 py-1 text-xs font-medium ${
-                        linkedToCurrentSession ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"
-                      }`}>
+                  <tr key={expense.id}>
+                    <td>
+                      <span style={{
+                        borderRadius: 999,
+                        padding: "3px 8px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: linkedToCurrentSession ? "var(--ax-blue)" : "var(--ax-slate-500)",
+                        background: linkedToCurrentSession ? "color-mix(in srgb, var(--ax-blue) 8%, white)" : "var(--ax-slate-50)",
+                      }}>
                         {linkedToCurrentSession ? "Session" : "Standalone"}
                       </span>
                     </td>
-                    <td className="p-3 border-b">
-                      <div className="font-medium text-gray-900">{expense.category}</div>
-                      <div className="text-xs text-gray-500">{expense.voucherReference || expense.description || "-"}</div>
+                    <td>
+                      <div style={{ fontWeight: 700, color: "var(--ax-blue)" }}>{expense.category}</div>
+                      <div style={{ fontSize: 12, color: "var(--ax-slate-500)" }}>{expense.voucherReference || expense.description || "-"}</div>
                     </td>
-                    <td className="p-3 border-b text-right tabular-nums">{formatCurrency(expense.amount)}</td>
-                    <td className="p-3 border-b text-right tabular-nums">{formatCurrency(expense.paymentToBank)}</td>
-                    <td className="p-3 border-b text-right tabular-nums font-medium">
+                    <td style={{ textAlign: "right" }}>{formatCurrency(expense.amount)}</td>
+                    <td style={{ textAlign: "right" }}>{formatCurrency(expense.paymentToBank)}</td>
+                    <td style={{ textAlign: "right", fontWeight: 700 }}>
                       {formatCurrency(expense.amount - expense.paymentToBank)}
                     </td>
-                    <td className="p-3 border-b">{expense.paidBy}</td>
-                    <td className="p-3 border-b">{expense.receiptAttached ? "Attached" : "Missing"}</td>
-                    <td className="p-3 border-b">
+                    <td>{expense.paidBy}</td>
+                    <td>{expense.receiptAttached ? "Attached" : "Missing"}</td>
+                    <td>
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
                           aria-label="Edit expenditure"
                           disabled={locked}
                           onClick={() => openEdit(expense)}
-                          className="rounded border border-gray-300 p-2 text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="btn btn-outline"
+                          style={{ width: 34, height: 34, padding: 0 }}
                         >
                           <Edit size={15} />
                         </button>
@@ -275,7 +291,8 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
                           aria-label="Delete expenditure"
                           disabled={locked}
                           onClick={() => setDeleteTarget(expense)}
-                          className="rounded border border-red-200 p-2 text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          className="btn btn-outline"
+                          style={{ width: 34, height: 34, padding: 0, color: "var(--ax-red)" }}
                         >
                           <Trash2 size={15} />
                         </button>
@@ -307,13 +324,13 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
       >
         <form id="expenditure-form" onSubmit={handleSubmit} className="space-y-5">
           {error && (
-            <div className="bg-red-50 text-red-600 p-3 rounded border border-red-200 text-sm">
+            <div style={{ color: "var(--ax-red)", marginBottom: 12, fontSize: 14 }}>
               {error}
             </div>
           )}
 
           {dailySession && !form.id && (
-            <label className="flex items-center gap-2 text-sm text-gray-700">
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--ax-blue)" }}>
               <input
                 type="checkbox"
                 checked={form.linkedToSession}
@@ -324,32 +341,32 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
           )}
 
           {form.id && (
-            <div className="rounded border border-gray-200 bg-gray-50 p-3 text-sm text-gray-600">
+            <div style={{ border: "1px solid var(--ax-border)", borderRadius: 8, background: "var(--ax-slate-50)", padding: 12, color: "var(--ax-slate-500)", fontSize: 14 }}>
               Session linkage cannot be changed after creation.
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Category *</span>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <label className="form-group">
+              <span className="form-label">Category *</span>
               <input
                 required
                 value={form.category}
                 onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-                className="w-full border rounded p-2"
+                className="form-input"
               />
             </label>
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Paid By *</span>
+            <label className="form-group">
+              <span className="form-label">Paid By *</span>
               <input
                 required
                 value={form.paidBy}
                 onChange={(event) => setForm((current) => ({ ...current, paidBy: event.target.value }))}
-                className="w-full border rounded p-2"
+                className="form-input"
               />
             </label>
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Amount *</span>
+            <label className="form-group">
+              <span className="form-label">Amount *</span>
               <input
                 required
                 type="number"
@@ -357,39 +374,39 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
                 step="0.01"
                 value={form.amount}
                 onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
-                className="w-full border rounded p-2"
+                className="form-input"
               />
             </label>
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Payment to Bank</span>
+            <label className="form-group">
+              <span className="form-label">Payment to Bank</span>
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 value={form.paymentToBank}
                 onChange={(event) => setForm((current) => ({ ...current, paymentToBank: event.target.value }))}
-                className="w-full border rounded p-2"
+                className="form-input"
               />
             </label>
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Voucher Reference</span>
+            <label className="form-group">
+              <span className="form-label">Voucher Reference</span>
               <input
                 value={form.voucherReference}
                 onChange={(event) => setForm((current) => ({ ...current, voucherReference: event.target.value }))}
-                className="w-full border rounded p-2"
+                className="form-input"
               />
             </label>
-            <label className="space-y-1">
-              <span className="text-sm font-medium text-gray-700">Approved By</span>
+            <label className="form-group">
+              <span className="form-label">Approved By</span>
               <input
                 value={form.approvedBy}
                 onChange={(event) => setForm((current) => ({ ...current, approvedBy: event.target.value }))}
-                className="w-full border rounded p-2"
+                className="form-input"
               />
             </label>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-gray-700">
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--ax-blue)" }}>
             <input
               type="checkbox"
               checked={form.receiptAttached}
@@ -398,13 +415,13 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
             Receipt attached
           </label>
 
-          <label className="space-y-1 block">
-            <span className="text-sm font-medium text-gray-700">Description</span>
+          <label className="form-group" style={{ display: "block" }}>
+            <span className="form-label">Description</span>
             <textarea
               rows={3}
               value={form.description}
               onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-              className="w-full border rounded p-2"
+              className="form-textarea"
             />
           </label>
         </form>
@@ -421,6 +438,6 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
         }}
         onConfirm={handleDelete}
       />
-    </div>
+    </>
   );
 }

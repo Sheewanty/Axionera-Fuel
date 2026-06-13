@@ -43,13 +43,14 @@ export default function CashCollectionPage() {
         eyebrow="Cash & Banking"
         title="Cash Collection"
         subtitle="Station Alpha · June 2026"
-        actions={
-          <button className="btn btn-primary" onClick={() => setOpen(true)} id="btn-add-collection">
-            <Plus size={13} />
-            Record Collection
-          </button>
-        }
       />
+
+      <div style={{ marginBottom: "20px" }}>
+        <button className="btn btn-primary" onClick={() => setOpen(true)} id="btn-add-collection">
+          <Plus size={13} />
+          Record Collection
+        </button>
+      </div>
 
       <DataTable<CashCollection>
         title="Bank Collection Records"

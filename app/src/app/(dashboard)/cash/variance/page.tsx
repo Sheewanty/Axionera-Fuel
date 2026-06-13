@@ -4,12 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { calcPhysicalCashToBank, formatCurrency } from "@/lib/calculations";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-
-function todayBusinessDate(): Date {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
+import { currentBusinessDate } from "@/lib/business-date";
 
 export default async function CashVariancePage({
   searchParams,
@@ -35,7 +30,7 @@ export default async function CashVariancePage({
     where: {
       tenantId: session.user.tenantId,
       stationId,
-      businessDate: todayBusinessDate(),
+      businessDate: currentBusinessDate(),
       shift: "DAY",
     },
     include: {

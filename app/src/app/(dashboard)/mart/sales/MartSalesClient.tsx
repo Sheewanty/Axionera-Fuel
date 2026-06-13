@@ -132,81 +132,99 @@ export default function MartSalesClient({ station, dailySession, martSale }: Pro
   }
 
   return (
-    <div className="mt-6 space-y-6">
-      <div className="bg-white p-6 rounded shadow">
-        <h2 className="text-xl font-semibold">Mart Sales Summary</h2>
-        <p className="text-gray-600">
+    <div style={{ marginTop: 24 }}>
+      <div
+        style={{
+          background: "white",
+          border: "1px solid var(--ax-border)",
+          borderRadius: 8,
+          padding: 16,
+          marginBottom: 20,
+        }}
+      >
+        <div style={{ color: "var(--ax-slate-500)", fontSize: 13, fontWeight: 600, textTransform: "uppercase" }}>
+          Mart Sales Summary
+        </div>
+        <p style={{ color: "var(--ax-slate-500)", marginTop: 4 }}>
           {station.name} | {dailySession.businessDate} | {dailySession.shift} Shift
         </p>
         {!canEdit && (
-          <p className="mt-2 text-sm text-amber-700">
+          <p style={{ marginTop: 8, color: "var(--ax-amber)", fontSize: 14 }}>
             This session is {dailySession.status}; mart sales are read-only.
           </p>
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded shadow">
-          <p className="text-sm text-gray-500">Net Mart Sales</p>
-          <p className="text-2xl font-semibold">{formatCurrency(netMartSales)}</p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16, marginBottom: 20 }}>
+        <div style={{ background: "white", border: "1px solid var(--ax-border)", borderRadius: 8, padding: 16 }}>
+          <p style={{ color: "var(--ax-slate-500)", fontSize: 13, fontWeight: 600 }}>Net Mart Sales</p>
+          <p style={{ color: "var(--ax-blue)", fontSize: 28, fontWeight: 700, marginTop: 8 }}>{formatCurrency(netMartSales)}</p>
         </div>
-        <div className="bg-white p-5 rounded shadow">
-          <p className="text-sm text-gray-500">Physical Cash Variance</p>
-          <p className={`text-2xl font-semibold ${cashVariance < 0 ? "text-red-600" : cashVariance > 0 ? "text-green-700" : "text-gray-900"}`}>
+        <div style={{ background: "white", border: "1px solid var(--ax-border)", borderRadius: 8, padding: 16 }}>
+          <p style={{ color: "var(--ax-slate-500)", fontSize: 13, fontWeight: 600 }}>Physical Cash Variance</p>
+          <p style={{ color: cashVariance < 0 ? "var(--ax-red)" : cashVariance > 0 ? "var(--ax-green)" : "var(--ax-blue)", fontSize: 28, fontWeight: 700, marginTop: 8 }}>
             {formatCurrency(cashVariance)}
           </p>
         </div>
-        <div className="bg-white p-5 rounded shadow">
-          <p className="text-sm text-gray-500">Cash Sales Expected</p>
-          <p className="text-2xl font-semibold">{formatCurrency(numbers.cashSales)}</p>
+        <div style={{ background: "white", border: "1px solid var(--ax-border)", borderRadius: 8, padding: 16 }}>
+          <p style={{ color: "var(--ax-slate-500)", fontSize: 13, fontWeight: 600 }}>Cash Sales Expected</p>
+          <p style={{ color: "var(--ax-blue)", fontSize: 28, fontWeight: 700, marginTop: 8 }}>{formatCurrency(numbers.cashSales)}</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow space-y-6">
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          background: "white",
+          border: "1px solid var(--ax-border)",
+          borderRadius: 8,
+          padding: 20,
+        }}
+      >
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded border border-red-200 text-sm">
+          <div style={{ color: "var(--ax-red)", marginBottom: 14, fontSize: 14 }}>
             {error}
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Opening Cash</span>
-            <input type="number" min="0" step="0.01" value={form.openingCash} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, openingCash: e.target.value }))} className="w-full border rounded p-2" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 }}>
+          <label className="form-group">
+            <span className="form-label">Opening Cash</span>
+            <input type="number" min="0" step="0.01" value={form.openingCash} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, openingCash: e.target.value }))} className="form-input" />
           </label>
-          <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">POS Sales</span>
-            <input type="number" min="0" step="0.01" value={form.posSales} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, posSales: e.target.value }))} className="w-full border rounded p-2" />
+          <label className="form-group">
+            <span className="form-label">POS Sales</span>
+            <input type="number" min="0" step="0.01" value={form.posSales} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, posSales: e.target.value }))} className="form-input" />
           </label>
-          <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Cash Sales</span>
-            <input type="number" min="0" step="0.01" value={form.cashSales} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, cashSales: e.target.value }))} className="w-full border rounded p-2" />
+          <label className="form-group">
+            <span className="form-label">Cash Sales</span>
+            <input type="number" min="0" step="0.01" value={form.cashSales} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, cashSales: e.target.value }))} className="form-input" />
           </label>
-          <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Mobile Money</span>
-            <input type="number" min="0" step="0.01" value={form.mobileMoney} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, mobileMoney: e.target.value }))} className="w-full border rounded p-2" />
+          <label className="form-group">
+            <span className="form-label">Mobile Money</span>
+            <input type="number" min="0" step="0.01" value={form.mobileMoney} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, mobileMoney: e.target.value }))} className="form-input" />
           </label>
-          <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Returns</span>
-            <input type="number" min="0" step="0.01" value={form.returns} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, returns: e.target.value }))} className="w-full border rounded p-2" />
+          <label className="form-group">
+            <span className="form-label">Returns</span>
+            <input type="number" min="0" step="0.01" value={form.returns} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, returns: e.target.value }))} className="form-input" />
           </label>
-          <label className="space-y-1">
-            <span className="text-sm font-medium text-gray-700">Physical Cash Count</span>
-            <input type="number" min="0" step="0.01" value={form.cashCount} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, cashCount: e.target.value }))} className="w-full border rounded p-2" />
+          <label className="form-group">
+            <span className="form-label">Physical Cash Count</span>
+            <input type="number" min="0" step="0.01" value={form.cashCount} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, cashCount: e.target.value }))} className="form-input" />
           </label>
         </div>
 
-        <label className="space-y-1 block">
-          <span className="text-sm font-medium text-gray-700">Remarks</span>
-          <textarea rows={3} value={form.remarks} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, remarks: e.target.value }))} className="w-full border rounded p-2" />
+        <label className="form-group" style={{ display: "block", marginTop: 16 }}>
+          <span className="form-label">Remarks</span>
+          <textarea rows={3} value={form.remarks} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, remarks: e.target.value }))} className="form-textarea" />
         </label>
 
         {canEdit && (
-          <div className="flex justify-end border-t pt-4">
+          <div style={{ display: "flex", justifyContent: "flex-end", borderTop: "1px solid var(--ax-border)", paddingTop: 16, marginTop: 18 }}>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800 disabled:opacity-50"
+              className="btn btn-primary"
             >
               <Save size={16} />
               {isSubmitting ? "Saving..." : martSale ? "Update Summary" : "Save Summary"}

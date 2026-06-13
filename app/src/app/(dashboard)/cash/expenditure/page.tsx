@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { listExpenditures } from "@/lib/db/expenditure.service";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
+import { currentBusinessDate } from "@/lib/business-date";
 import ExpenditureClient from "./ExpenditureClient";
 
 export default async function ExpenditurePage({
@@ -36,8 +37,12 @@ export default async function ExpenditurePage({
   }
 
   const dailySession = await prisma.dailySession.findFirst({
-    where: { stationId: targetStationId, tenantId: session.user.tenantId, shift: "DAY" },
-    orderBy: { businessDate: "desc" },
+    where: {
+      stationId: targetStationId,
+      tenantId: session.user.tenantId,
+      businessDate: currentBusinessDate(),
+      shift: "DAY",
+    },
   });
 
   const expendituresDb = await listExpenditures(
