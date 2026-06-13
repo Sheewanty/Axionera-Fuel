@@ -136,10 +136,10 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
       {/* Logo mark */}
       <div className="sidebar-logo" role="img" aria-label="FuelStation OS logo">
         <Image
-          src="/axionera-mark.png"
+          src="/axionera-sidebar-icon.png"
           alt=""
-          width={24}
-          height={24}
+          width={36}
+          height={36}
           priority
           aria-hidden="true"
         />

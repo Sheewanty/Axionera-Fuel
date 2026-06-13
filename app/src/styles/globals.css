@@ -86,8 +86,8 @@ h1, h2, h3, h4, h5, h6 {
 .sidebar-logo {
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  background: var(--ax-white);
+  border-radius: 9px;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -97,9 +97,10 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .sidebar-logo img {
-  width: 24px;
-  height: 24px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
+  border-radius: 9px;
 }
 
 /* ─── Nav Menu ───────────────────────────────────────────────────────────── */
