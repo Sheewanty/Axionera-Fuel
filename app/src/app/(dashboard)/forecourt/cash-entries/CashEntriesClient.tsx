@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Station } from "@prisma/client";
+import Modal from "@/components/ui/Modal";
 import { submitCashCollection } from "@/lib/actions/cash-collection.actions";
 import { formatCurrency } from "@/lib/calculations";
 import { formatDisplayDate } from "@/lib/business-date";
@@ -137,121 +138,98 @@ export default function CashEntriesClient({
         )}
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b">
-              <h3 className="text-xl font-semibold">New Cash Entry</h3>
+      <Modal
+        open={isModalOpen}
+        title="New Cash Entry"
+        onClose={() => {
+          if (!isSubmitting) setIsModalOpen(false);
+        }}
+        size="lg"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              className="btn btn-outline"
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="cash-entry-form"
+              disabled={isSubmitting}
+              className="btn btn-primary"
+            >
+              {isSubmitting ? "Saving..." : "Save Cash Entry"}
+            </button>
+          </>
+        }
+      >
+        <form id="cash-entry-form" onSubmit={handleSubmit}>
+          {error && (
+            <div style={{ color: "var(--ax-red)", marginBottom: 14, fontSize: 14 }}>
+              {error}
             </div>
+          )}
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {error && (
-                <div style={{ color: "var(--ax-red)", marginBottom: 12, fontSize: 14 }}>
-                  {error}
-                </div>
-              )}
-
-              <div className="bg-gray-50 p-4 rounded space-y-2 border">
-                <div className="flex justify-between text-sm text-gray-600">
-                  <span>Total Pump Cash Received:</span>
-                  <span>{formatCurrency(totalCashReceived)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-gray-600 border-b pb-2">
-                  <span>Total Net Expenditure:</span>
-                  <span>- {formatCurrency(totalNetExpenditure)}</span>
-                </div>
-                {totalBanked > 0 && (
-                  <div className="flex justify-between text-sm text-gray-600 border-b pb-2 pt-2">
-                    <span>Already Banked:</span>
-                    <span>- {formatCurrency(totalBanked)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-semibold pt-1">
-                  <span>Remaining Expected Cash:</span>
-                  <span>{formatCurrency(currentExpectedCash)}</span>
-                </div>
+          <div
+            style={{
+              background: "var(--ax-slate-50)",
+              border: "1px solid var(--ax-border)",
+              borderRadius: 8,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ax-slate-500)", fontSize: 14 }}>
+              <span>Total Pump Cash Received</span>
+              <span>{formatCurrency(totalCashReceived)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ax-slate-500)", fontSize: 14, marginTop: 6 }}>
+              <span>Total Net Expenditure</span>
+              <span>- {formatCurrency(totalNetExpenditure)}</span>
+            </div>
+            {totalBanked > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ax-slate-500)", fontSize: 14, marginTop: 6 }}>
+                <span>Already Banked</span>
+                <span>- {formatCurrency(totalBanked)}</span>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="form-group">
-                  <label className="form-label">Amount to Bank *</label>
-                  <input
-                    type="number"
-                    name="amountToBank"
-                    step="0.01"
-                    min="0"
-                    required
-                    className="form-input"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Bank Collection Date</label>
-                  <input
-                    type="date"
-                    name="bankCollectionDate"
-                    className="form-input"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="form-group">
-                  <label className="form-label">Collection Reference</label>
-                  <input
-                    type="text"
-                    name="bankCollectionReference"
-                    className="form-input"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Bank Signature Name</label>
-                  <input
-                    type="text"
-                    name="bankSignatureName"
-                    className="form-input"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Supervisor Signature Name</label>
-                <input
-                  type="text"
-                  name="supervisorSignatureName"
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Remarks</label>
-                <textarea
-                  name="remarks"
-                  rows={2}
-                  className="form-textarea"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="btn btn-outline"
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="btn btn-primary"
-                >
-                  {isSubmitting ? "Saving..." : "Save Cash Entry"}
-                </button>
-              </div>
-            </form>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--ax-border)", marginTop: 10, paddingTop: 10, color: "var(--ax-blue)", fontWeight: 700 }}>
+              <span>Remaining Expected Cash</span>
+              <span>{formatCurrency(currentExpectedCash)}</span>
+            </div>
           </div>
-        </div>
-      )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <div className="form-group">
+              <label className="form-label">Amount to Bank *</label>
+              <input type="number" name="amountToBank" step="0.01" min="0" required className="form-input" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Bank Collection Date</label>
+              <input type="date" name="bankCollectionDate" className="form-input" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Collection Reference</label>
+              <input type="text" name="bankCollectionReference" className="form-input" />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Bank Signature Name</label>
+              <input type="text" name="bankSignatureName" className="form-input" />
+            </div>
+            <div className="form-group" style={{ gridColumn: "1/-1" }}>
+              <label className="form-label">Supervisor Signature Name</label>
+              <input type="text" name="supervisorSignatureName" className="form-input" />
+            </div>
+            <div className="form-group" style={{ gridColumn: "1/-1" }}>
+              <label className="form-label">Remarks</label>
+              <textarea name="remarks" rows={3} className="form-textarea" />
+            </div>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
