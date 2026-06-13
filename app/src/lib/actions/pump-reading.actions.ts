@@ -14,6 +14,13 @@ export type ActionResponse = {
   id?: string;
 };
 
+function errorResponse(error: unknown): ActionResponse {
+  return {
+    success: false,
+    error: error instanceof Error ? error.message : "An unknown error occurred",
+  };
+}
+
 export async function submitPumpReading(stationId: string, formData: FormData): Promise<ActionResponse> {
   const rawData = Object.fromEntries(formData.entries());
   const parsed = CreatePumpReadingSchema.safeParse(rawData);
@@ -44,9 +51,13 @@ export async function submitPumpReading(stationId: string, formData: FormData): 
     }
   );
 
-  const res = await mutation(parsed.data);
-  if (res.success) {
-    revalidatePath("/forecourt/pump-readings");
+  try {
+    const res = await mutation(parsed.data);
+    if (res.success) {
+      revalidatePath("/forecourt/pump-readings");
+    }
+    return res;
+  } catch (error) {
+    return errorResponse(error);
   }
-  return res;
 }

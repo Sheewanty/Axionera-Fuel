@@ -2,6 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
+import { currentBusinessDate } from "@/lib/business-date";
 import MartSalesClient from "./MartSalesClient";
 
 export default async function MartSalesPage({
@@ -35,8 +36,12 @@ export default async function MartSalesPage({
   }
 
   const dailySession = await prisma.dailySession.findFirst({
-    where: { stationId: targetStationId, tenantId: session.user.tenantId, shift: "DAY" },
-    orderBy: { businessDate: "desc" },
+    where: {
+      stationId: targetStationId,
+      tenantId: session.user.tenantId,
+      businessDate: currentBusinessDate(),
+      shift: "DAY",
+    },
   });
 
   const martSale = dailySession

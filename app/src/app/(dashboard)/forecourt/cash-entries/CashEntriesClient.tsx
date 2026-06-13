@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Station } from "@prisma/client";
 import { submitCashCollection } from "@/lib/actions/cash-collection.actions";
 import { formatCurrency } from "@/lib/calculations";
@@ -43,6 +44,7 @@ export default function CashEntriesClient({
   totalNetExpenditure,
   totalBanked,
 }: Props) {
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,6 +65,7 @@ export default function CashEntriesClient({
         setError(res.error + ": " + JSON.stringify(res.fieldErrors || {}));
       } else {
         setIsModalOpen(false);
+        router.refresh();
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "An error occurred");

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Modal from "@/components/ui/Modal";
-import { Plus, Info } from "lucide-react";
+import { Plus } from "lucide-react";
 import { createProductDischargeAction } from "@/lib/actions/product-discharge.actions";
 import { useRouter } from "next/navigation";
 
@@ -131,21 +131,14 @@ export default function ProductDischargeClient({
 
   return (
     <div className="mt-6 space-y-6">
-      {/* Action Bar */}
-      <div className="flex justify-between items-center bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-        <div className="text-sm text-slate-600">
-          <Info className="inline-block w-4 h-4 mr-2" />
-          Product discharges track fuel received from suppliers.
-        </div>
-        {canEdit && (
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center justify-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow hover:bg-slate-800"
-          >
-            <Plus className="w-4 h-4 mr-2" /> Record Discharge
+      {canEdit && (
+        <div style={{ marginBottom: "20px" }}>
+          <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+            <Plus size={13} />
+            Add Discharge Record
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Data Table */}
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
@@ -202,7 +195,8 @@ export default function ProductDischargeClient({
             <button 
               type="button" 
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              className="btn btn-outline"
+              disabled={loading}
             >
               Cancel
             </button>
@@ -210,7 +204,7 @@ export default function ProductDischargeClient({
               type="submit" 
               form="discharge-form"
               disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-md shadow hover:bg-slate-800 disabled:opacity-50"
+              className="btn btn-primary disabled:opacity-50"
             >
               {loading ? "Saving..." : "Save Record"}
             </button>

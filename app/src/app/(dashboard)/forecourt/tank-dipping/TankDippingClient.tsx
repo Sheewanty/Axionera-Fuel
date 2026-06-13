@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import DataTable from "@/components/ui/DataTable";
 import VarianceBadge from "@/components/ui/VarianceBadge";
@@ -43,6 +44,7 @@ export default function TankDippingClient({
   dippings: TankDippingView[];
   tanks: TankInfo[];
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +94,7 @@ export default function TankDippingClient({
         setClosingDipCm("");
         setWaterTestStatus("CLEAR");
         setRemarks("");
+        router.refresh();
       } else {
         setError(res.error || "Failed to save tank dipping");
       }

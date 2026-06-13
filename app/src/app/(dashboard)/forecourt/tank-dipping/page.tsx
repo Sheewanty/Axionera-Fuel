@@ -2,6 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
+import { currentBusinessDate } from "@/lib/business-date";
 import TankDippingClient from "./TankDippingClient";
 
 export default async function TankDippingPage({
@@ -25,8 +26,12 @@ export default async function TankDippingPage({
   if (!station) return <div>Station not found</div>;
 
   const dailySession = await prisma.dailySession.findFirst({
-    where: { stationId: targetStationId, tenantId: session.user.tenantId, shift: "DAY" },
-    orderBy: { businessDate: "desc" },
+    where: {
+      stationId: targetStationId,
+      tenantId: session.user.tenantId,
+      businessDate: currentBusinessDate(),
+      shift: "DAY",
+    },
   });
 
   if (!dailySession) {

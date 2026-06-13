@@ -14,6 +14,13 @@ export type ActionResponse = {
   id?: string;
 };
 
+function errorResponse(error: unknown): ActionResponse {
+  return {
+    success: false,
+    error: error instanceof Error ? error.message : "An unknown error occurred",
+  };
+}
+
 export async function submitTankDipping(stationId: string, formData: FormData): Promise<ActionResponse> {
   const rawData = Object.fromEntries(formData.entries());
   const parsed = CreateTankDippingSchema.safeParse(rawData);
@@ -43,9 +50,13 @@ export async function submitTankDipping(stationId: string, formData: FormData): 
     }
   );
 
-  const res = await mutation(parsed.data);
-  if (res.success) {
-    revalidatePath("/forecourt/tank-dipping");
+  try {
+    const res = await mutation(parsed.data);
+    if (res.success) {
+      revalidatePath("/forecourt/tank-dipping");
+    }
+    return res;
+  } catch (error) {
+    return errorResponse(error);
   }
-  return res;
 }

@@ -4,12 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import DailyCloseClient from "./DailyCloseClient";
 import { calcPhysicalCashToBank } from "@/lib/calculations";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-
-function todayBusinessDate(): Date {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
+import { currentBusinessDate } from "@/lib/business-date";
 
 export default async function DailyClosePage({
   searchParams,
@@ -42,7 +37,7 @@ export default async function DailyClosePage({
     where: {
       stationId: targetStationId,
       tenantId: session.user.tenantId,
-      businessDate: todayBusinessDate(),
+      businessDate: currentBusinessDate(),
       shift: "DAY",
     },
     include: {

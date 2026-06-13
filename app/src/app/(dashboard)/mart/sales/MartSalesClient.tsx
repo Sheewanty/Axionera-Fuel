@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Save } from "lucide-react";
 import {
   createMartSaleAction,
@@ -58,6 +59,7 @@ function errorMessage(error: unknown): string {
 }
 
 export default function MartSalesClient({ station, dailySession, martSale }: Props) {
+  const router = useRouter();
   const [form, setForm] = useState<FormState>({
     openingCash: toField(martSale?.openingCash),
     posSales: toField(martSale?.posSales),
@@ -111,6 +113,8 @@ export default function MartSalesClient({ station, dailySession, martSale }: Pro
 
       if (!response.success) {
         setError(response.error ?? "Unable to save mart sales");
+      } else {
+        router.refresh();
       }
     } catch (err) {
       setError(errorMessage(err));

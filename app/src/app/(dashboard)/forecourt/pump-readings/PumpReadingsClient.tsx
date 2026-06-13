@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import DataTable from "@/components/ui/DataTable";
 import VarianceBadge from "@/components/ui/VarianceBadge";
@@ -51,6 +52,7 @@ export default function PumpReadingsClient({
   readings: PumpReadingView[];
   nozzles: NozzleInfo[];
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -106,6 +108,7 @@ export default function PumpReadingsClient({
         setCouponAmount("");
         setGhqrAmount("");
         setCreditorsAmount("");
+        router.refresh();
       } else {
         setError(res.error || "Failed to save reading");
       }

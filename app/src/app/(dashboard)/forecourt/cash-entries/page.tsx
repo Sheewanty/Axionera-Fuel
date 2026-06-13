@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
 import CashEntriesClient from "./CashEntriesClient";
 import { calcPhysicalCashToBank } from "@/lib/calculations";
+import { currentBusinessDate } from "@/lib/business-date";
 
 export default async function CashEntriesPage({
   searchParams,
@@ -37,9 +38,10 @@ export default async function CashEntriesPage({
     where: {
       stationId: targetStationId,
       tenantId: session.user.tenantId,
-      status: "OPEN", // only fetch open sessions for data entry
+      businessDate: currentBusinessDate(),
+      shift: "DAY",
+      status: { in: ["OPEN", "REOPENED"] },
     },
-    orderBy: { businessDate: "desc" },
   });
 
   if (!station || !dailySession) {

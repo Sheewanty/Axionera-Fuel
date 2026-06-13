@@ -14,6 +14,13 @@ export type ActionResponse = {
   id?: string;
 };
 
+function errorResponse(error: unknown): ActionResponse {
+  return {
+    success: false,
+    error: error instanceof Error ? error.message : "An unknown error occurred",
+  };
+}
+
 export const submitCashCollection = async (formData: FormData): Promise<ActionResponse> => {
   const rawData = Object.fromEntries(formData.entries());
 
@@ -39,9 +46,13 @@ export const submitCashCollection = async (formData: FormData): Promise<ActionRe
     }
   );
 
-  const res = await mutation(parsed.data);
-  if (res.success) {
-    revalidatePath("/forecourt/cash-entries");
+  try {
+    const res = await mutation(parsed.data);
+    if (res.success) {
+      revalidatePath("/forecourt/cash-entries");
+    }
+    return res;
+  } catch (error) {
+    return errorResponse(error);
   }
-  return res;
 };

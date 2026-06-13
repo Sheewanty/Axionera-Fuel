@@ -20,12 +20,17 @@ interface ModalProps {
 export default function Modal({ open, title, onClose, children, footer, size = "md" }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   /** Trap Tab / Shift+Tab inside the modal box */
   const handleKey = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -60,7 +65,7 @@ export default function Modal({ open, title, onClose, children, footer, size = "
         }
       }
     },
-    [onClose]
+    []
   );
 
   // Attach / detach keyboard handler and manage body scroll lock
