@@ -26,11 +26,13 @@ export const config = {
   /**
    * Matcher excludes:
    *   - Next.js internal routes (_next/*)
-   *   - Static files (images, favicon, etc.)
+   *   - Static files (images, favicons, web manifests, etc.)
    *   - The auth API itself (/api/auth/*)
    *   - Health checks (/api/health)
    * Everything else (including /login itself) goes through the proxy
    * so that already-authenticated users visiting /login are redirected away.
    */
-  matcher: ["/((?!api/auth|api/health|_next/static|_next/image|favicon\\.ico).*)"],
+  matcher: [
+    "/((?!api/auth|api/health|_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|txt|xml|json|webmanifest)$).*)",
+  ],
 };
