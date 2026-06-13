@@ -87,7 +87,7 @@ h1, h2, h3, h4, h5, h6 {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--ax-gold);
+  background: var(--ax-white);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -96,11 +96,10 @@ h1, h2, h3, h4, h5, h6 {
   cursor: pointer;
 }
 
-.sidebar-logo span {
-  font-family: var(--app-font-heading);
-  font-size: 1.1rem;
-  color: var(--ax-white);
-  line-height: 1;
+.sidebar-logo img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
 }
 
 /* ─── Nav Menu ───────────────────────────────────────────────────────────── */

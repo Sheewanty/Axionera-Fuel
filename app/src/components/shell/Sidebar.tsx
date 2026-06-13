@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ChevronDown,
@@ -134,7 +135,14 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
     <aside className={`sidebar${isPinned ? " expanded" : ""}`}>
       {/* Logo mark */}
       <div className="sidebar-logo" role="img" aria-label="FuelStation OS logo">
-        <span>FS</span>
+        <Image
+          src="/axionera-mark.png"
+          alt=""
+          width={24}
+          height={24}
+          priority
+          aria-hidden="true"
+        />
       </div>
 
       {/* Nav menu */}
