@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -44,6 +47,7 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
           script: |
             set -eu
             sudo mkdir -p /opt/fuelstation-os/backups
@@ -55,6 +59,7 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
           source: "deploy/docker-compose.prod.yml,deploy/Caddyfile"
           target: "/opt/fuelstation-os"
 
@@ -65,6 +70,7 @@ jobs:
           APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          RATE_LIMIT_BACKEND: ${{ secrets.RATE_LIMIT_BACKEND }}
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
@@ -73,7 +79,8 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
-          envs: APP_IMAGE,APP_DOMAIN,POSTGRES_PASSWORD,AUTH_SECRET,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN,GHCR_USERNAME,GHCR_TOKEN
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          envs: APP_IMAGE,APP_DOMAIN,POSTGRES_PASSWORD,AUTH_SECRET,RATE_LIMIT_BACKEND,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN,GHCR_USERNAME,GHCR_TOKEN
           script: |
             set -eu
             cd /opt/fuelstation-os
@@ -91,6 +98,7 @@ jobs:
             AUTH_URL=https://${APP_DOMAIN}
             AUTH_TRUST_HOST=true
             NODE_ENV=production
+            RATE_LIMIT_BACKEND=${RATE_LIMIT_BACKEND:-memory}
             UPSTASH_REDIS_REST_URL=${UPSTASH_REDIS_REST_URL}
             UPSTASH_REDIS_REST_TOKEN=${UPSTASH_REDIS_REST_TOKEN}
             EOF
@@ -101,10 +109,12 @@ jobs:
               echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
             fi
 
+            docker image prune -af || true
             docker compose --env-file .env.production pull app
             docker compose --env-file .env.production up -d postgres
             docker compose --env-file .env.production run --rm app npm run db:migrate
             docker compose --env-file .env.production up -d
+            docker image prune -af || true
             docker compose --env-file .env.production ps
 
             sleep 8

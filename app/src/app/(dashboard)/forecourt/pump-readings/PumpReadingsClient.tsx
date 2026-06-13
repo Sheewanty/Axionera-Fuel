@@ -39,6 +39,29 @@ type PumpReadingView = {
   variance: number;
 };
 
+const fieldLabels: Record<string, string> = {
+  stationId: "Station",
+  dailySessionId: "Daily session",
+  businessDate: "Business date",
+  shift: "Shift",
+  pumpId: "Pump",
+  nozzleId: "Nozzle",
+  productId: "Product",
+  previousLitre: "Previous meter",
+  currentLitre: "Current meter",
+  pricePerLitre: "Price per litre",
+  cashReceived: "Cash received",
+  gocardAmount: "GO Card / Visa",
+  couponAmount: "GOIL Coupon",
+  ghqrAmount: "GHQR / Mobile Money",
+  creditorsAmount: "Creditors",
+  remarks: "Remarks",
+};
+
+function fieldLabel(field: string): string {
+  return fieldLabels[field] ?? field;
+}
+
 export default function PumpReadingsClient({
   stationId,
   dailySessionId,
@@ -56,6 +79,7 @@ export default function PumpReadingsClient({
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
 
   // Form state
   const [selectedNozzleId, setSelectedNozzleId] = useState(nozzles[0]?.id || "");
@@ -79,6 +103,7 @@ export default function PumpReadingsClient({
     if (!selectedNozzle) return;
 
     setError(null);
+    setFieldErrors({});
     const formData = new FormData();
     formData.append("stationId", stationId);
     formData.append("dailySessionId", dailySessionId);
@@ -110,7 +135,8 @@ export default function PumpReadingsClient({
         setCreditorsAmount("");
         router.refresh();
       } else {
-        setError(res.error || "Failed to save reading");
+        setError(res.fieldErrors ? "Please correct the highlighted fields." : res.error || "Failed to save reading");
+        setFieldErrors(res.fieldErrors ?? {});
       }
     });
   };
@@ -164,7 +190,34 @@ export default function PumpReadingsClient({
           </>
         }
       >
-        {error && <div style={{ color: "red", marginBottom: "10px" }}>{error}</div>}
+        {error && (
+          <div
+            role="alert"
+            style={{
+              color: "var(--ax-red)",
+              border: "1px solid color-mix(in srgb, var(--ax-red) 30%, transparent)",
+              borderRadius: 8,
+              background: "color-mix(in srgb, var(--ax-red) 7%, white)",
+              padding: "10px 12px",
+              marginBottom: "14px",
+              fontSize: 14,
+              lineHeight: 1.4,
+            }}
+          >
+            <div style={{ fontWeight: 700 }}>{error}</div>
+            {Object.keys(fieldErrors).length > 0 && (
+              <ul style={{ margin: "6px 0 0 18px", padding: 0 }}>
+                {Object.entries(fieldErrors).flatMap(([field, messages]) =>
+                  messages.map((message) => (
+                    <li key={`${field}-${message}`}>
+                      <strong>{fieldLabel(field)}:</strong> {message}
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
+          </div>
+        )}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
           <div className="form-group" style={{ gridColumn: "1/-1" }}>
             <label className="form-label">Pump / Nozzle</label>
