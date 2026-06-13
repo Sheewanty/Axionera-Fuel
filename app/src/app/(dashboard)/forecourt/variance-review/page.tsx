@@ -4,12 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { formatCurrency, formatLitres } from "@/lib/calculations";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-
-function todayBusinessDate(): Date {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
+import { currentBusinessDate, formatDisplayDate } from "@/lib/business-date";
 
 export default async function VarianceReviewPage({
   searchParams,
@@ -38,7 +33,7 @@ export default async function VarianceReviewPage({
     where: {
       tenantId: session.user.tenantId,
       stationId,
-      businessDate: todayBusinessDate(),
+      businessDate: currentBusinessDate(),
       shift: "DAY",
     },
     include: {
@@ -70,7 +65,7 @@ export default async function VarianceReviewPage({
       <PageTitle
         eyebrow="Forecourt Operations"
         title="Variance Review"
-        subtitle={`${station.name} - ${dailySession.businessDate.toISOString().split("T")[0]} - ${dailySession.status.replace(/_/g, " ")}`}
+        subtitle={`${station.name} - ${formatDisplayDate(dailySession.businessDate)} - ${dailySession.status.replace(/_/g, " ")}`}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">

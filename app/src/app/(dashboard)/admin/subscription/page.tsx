@@ -1,6 +1,7 @@
 import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireRole } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
+import { formatDisplayDate } from "@/lib/business-date";
 
 export default async function SubscriptionPage() {
   const session = await getRequiredSession();
@@ -59,11 +60,7 @@ export default async function SubscriptionPage() {
             <div className="kpi-card">
               <div className="page-section-label">Account Created</div>
               <div className="text-base mt-1">
-                {tenant.createdAt.toLocaleDateString("en-GB", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
+                {formatDisplayDate(tenant.createdAt)}
               </div>
             </div>
           </div>

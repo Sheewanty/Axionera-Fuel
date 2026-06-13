@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { Station } from "@prisma/client";
 import { submitCashCollection } from "@/lib/actions/cash-collection.actions";
 import { formatCurrency } from "@/lib/calculations";
+import { formatDisplayDate } from "@/lib/business-date";
 
 type DailySessionProps = {
   id: string;
@@ -76,19 +78,20 @@ export default function CashEntriesClient({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-6 rounded shadow flex justify-between items-center">
+      <div style={{ marginBottom: "20px" }}>
+        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+          <Plus size={13} />
+          Add Cash Entry
+        </button>
+      </div>
+
+      <div className="bg-white p-6 rounded shadow">
         <div>
           <h2 className="text-xl font-semibold">Active Session</h2>
           <p className="text-gray-600">
-            {station.name} | {dailySession.businessDate} | Shift: {dailySession.shift}
+            {station.name} | {formatDisplayDate(dailySession.businessDate)} | Shift: {dailySession.shift}
           </p>
         </div>
-        <button
-          onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-        >
-          Add Cash Entry
-        </button>
       </div>
 
       <div className="bg-white p-6 rounded shadow overflow-x-auto">
@@ -121,7 +124,7 @@ export default function CashEntriesClient({
                     {formatCurrency(c.variance)}
                   </td>
                   <td className="p-3 border-b text-sm text-gray-500">
-                    {c.bankCollectionDate || "-"} <br/>
+                    {formatDisplayDate(c.bankCollectionDate)} <br/>
                     {c.bankCollectionReference}
                   </td>
                   <td className="p-3 border-b text-sm text-gray-600">
@@ -143,7 +146,7 @@ export default function CashEntriesClient({
 
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
               {error && (
-                <div className="bg-red-50 text-red-600 p-3 rounded">
+                <div style={{ color: "var(--ax-red)", marginBottom: 12, fontSize: 14 }}>
                   {error}
                 </div>
               )}
@@ -170,61 +173,61 @@ export default function CashEntriesClient({
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Amount to Bank *</label>
+                <div className="form-group">
+                  <label className="form-label">Amount to Bank *</label>
                   <input
                     type="number"
                     name="amountToBank"
                     step="0.01"
                     min="0"
                     required
-                    className="w-full border rounded p-2"
+                    className="form-input"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Bank Collection Date</label>
+                <div className="form-group">
+                  <label className="form-label">Bank Collection Date</label>
                   <input
                     type="date"
                     name="bankCollectionDate"
-                    className="w-full border rounded p-2"
+                    className="form-input"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Collection Reference</label>
+                <div className="form-group">
+                  <label className="form-label">Collection Reference</label>
                   <input
                     type="text"
                     name="bankCollectionReference"
-                    className="w-full border rounded p-2"
+                    className="form-input"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Bank Signature Name</label>
+                <div className="form-group">
+                  <label className="form-label">Bank Signature Name</label>
                   <input
                     type="text"
                     name="bankSignatureName"
-                    className="w-full border rounded p-2"
+                    className="form-input"
                   />
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Supervisor Signature Name</label>
+              <div className="form-group">
+                <label className="form-label">Supervisor Signature Name</label>
                 <input
                   type="text"
                   name="supervisorSignatureName"
-                  className="w-full border rounded p-2"
+                  className="form-input"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Remarks</label>
+              <div className="form-group">
+                <label className="form-label">Remarks</label>
                 <textarea
                   name="remarks"
                   rows={2}
-                  className="w-full border rounded p-2"
+                  className="form-textarea"
                 />
               </div>
 
@@ -232,7 +235,7 @@ export default function CashEntriesClient({
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                  className="btn btn-outline"
                   disabled={isSubmitting}
                 >
                   Cancel
@@ -240,7 +243,7 @@ export default function CashEntriesClient({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  className="btn btn-primary"
                 >
                   {isSubmitting ? "Saving..." : "Save Cash Entry"}
                 </button>

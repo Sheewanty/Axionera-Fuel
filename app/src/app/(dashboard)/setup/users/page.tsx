@@ -1,6 +1,7 @@
 import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireRole } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
+import { formatDisplayDate } from "@/lib/business-date";
 
 export default async function UsersPage() {
   const session = await getRequiredSession();
@@ -108,7 +109,7 @@ export default async function UsersPage() {
                         {membership.user.status === "ACTIVE" ? "Active" : "Inactive"}
                       </span>
                     </td>
-                    <td>{membership.createdAt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                    <td>{formatDisplayDate(membership.createdAt)}</td>
                   </tr>
                 ))
               )}

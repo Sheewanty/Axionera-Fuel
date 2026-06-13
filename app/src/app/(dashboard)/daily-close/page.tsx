@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import DailyCloseClient from "./DailyCloseClient";
 import { calcPhysicalCashToBank } from "@/lib/calculations";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-import { currentBusinessDate } from "@/lib/business-date";
+import { currentBusinessDate, formatDisplayDate } from "@/lib/business-date";
 
 export default async function DailyClosePage({
   searchParams,
@@ -132,7 +132,7 @@ export default async function DailyClosePage({
         station={station}
         dailySession={{
           id: dailySession.id,
-          businessDate: dailySession.businessDate.toISOString().split("T")[0],
+          businessDate: formatDisplayDate(dailySession.businessDate),
           shift: dailySession.shift,
           status: dailySession.status,
           supervisorNotes: dailySession.supervisorNotes,

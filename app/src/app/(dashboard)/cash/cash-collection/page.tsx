@@ -23,13 +23,13 @@ interface CashCollection {
 
 const DEMO_COLLECTIONS: CashCollection[] = [
   {
-    id: "1", date: "11 Jun 2026", shift: "Day", amountToBank: 177100, bankRef: "FNB-2026-0611-A",
-    bankDate: "11 Jun 2026", expectedCash: 178520, variance: 177100 - 178520,
+    id: "1", date: "11-Jun-2026", shift: "Day", amountToBank: 177100, bankRef: "FNB-2026-0611-A",
+    bankDate: "11-Jun-2026", expectedCash: 178520, variance: 177100 - 178520,
     bankSignature: "R. Naidoo", supervisorSignature: "T. Nkosi",
   },
   {
-    id: "2", date: "10 Jun 2026", shift: "Day", amountToBank: 162400, bankRef: "FNB-2026-0610-A",
-    bankDate: "10 Jun 2026", expectedCash: 163200, variance: 162400 - 163200,
+    id: "2", date: "10-Jun-2026", shift: "Day", amountToBank: 162400, bankRef: "FNB-2026-0610-A",
+    bankDate: "10-Jun-2026", expectedCash: 163200, variance: 162400 - 163200,
     bankSignature: "R. Naidoo", supervisorSignature: "T. Nkosi",
   },
 ];
@@ -42,7 +42,7 @@ export default function CashCollectionPage() {
       <PageTitle
         eyebrow="Cash & Banking"
         title="Cash Collection"
-        subtitle="Station Alpha · June 2026"
+        subtitle="Station Alpha · Jun-2026"
       />
 
       <div style={{ marginBottom: "20px" }}>

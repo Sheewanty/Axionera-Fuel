@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { calcPhysicalCashToBank, formatCurrency } from "@/lib/calculations";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-import { currentBusinessDate } from "@/lib/business-date";
+import { currentBusinessDate, formatDisplayDate } from "@/lib/business-date";
 
 export default async function CashVariancePage({
   searchParams,
@@ -68,7 +68,7 @@ export default async function CashVariancePage({
       <PageTitle
         eyebrow="Cash & Banking"
         title="Cash Variance"
-        subtitle={`${dailySession.station.name} - ${dailySession.businessDate.toISOString().split("T")[0]}`}
+        subtitle={`${dailySession.station.name} - ${formatDisplayDate(dailySession.businessDate)}`}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

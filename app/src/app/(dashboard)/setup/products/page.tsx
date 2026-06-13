@@ -2,6 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireRole, requireStationScope } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
+import { formatDisplayDate } from "@/lib/business-date";
 
 export default async function ProductsPage({
   searchParams,
@@ -112,7 +113,7 @@ export default async function ProductsPage({
                       </td>
                       <td>
                         {price
-                          ? price.effectiveFrom.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+                          ? formatDisplayDate(price.effectiveFrom)
                           : <span style={{ color: "var(--ax-muted)" }}>—</span>}
                       </td>
                     </tr>

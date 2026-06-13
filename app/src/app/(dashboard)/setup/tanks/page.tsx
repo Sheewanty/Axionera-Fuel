@@ -2,6 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireRole, requireStationScope } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
+import { formatDisplayDate } from "@/lib/business-date";
 
 export default async function TanksPage({
   searchParams,
@@ -87,7 +88,7 @@ export default async function TanksPage({
                         {tank.status === "ACTIVE" ? "Active" : "Inactive"}
                       </span>
                     </td>
-                    <td>{tank.createdAt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                    <td>{formatDisplayDate(tank.createdAt)}</td>
                   </tr>
                 ))
               )}

@@ -30,8 +30,8 @@ interface StationStatus {
 }
 
 const STATION_STATUS: StationStatus[] = [
-  { id: "1", station: "GOIL Accra Central",  date: "2026-06-11", status: "READY_FOR_REVIEW", litresSold: 11469, cashBanked: 168182, variance: -1238 },
-  { id: "2", station: "GOIL Kumasi Adum",    date: "2026-06-11", status: "OPEN",             litresSold: 7000,  cashBanked: 105000, variance: -762  },
+  { id: "1", station: "GOIL Accra Central",  date: "11-Jun-2026", status: "READY_FOR_REVIEW", litresSold: 11469, cashBanked: 168182, variance: -1238 },
+  { id: "2", station: "GOIL Kumasi Adum",    date: "11-Jun-2026", status: "OPEN",             litresSold: 7000,  cashBanked: 105000, variance: -762  },
 ];
 
 interface Alert {
@@ -42,7 +42,7 @@ interface Alert {
 }
 
 const ALERTS: Alert[] = [
-  { id: "a1", severity: "danger",  title: "Pump 2 Nozzle A — Cash Short GHS 820",  detail: "GOIL Accra Central · 11 Jun 2026 · Attendant: Abena Osei" },
+  { id: "a1", severity: "danger",  title: "Pump 2 Nozzle A — Cash Short GHS 820",  detail: "GOIL Accra Central · 11-Jun-2026 · Attendant: Abena Osei" },
   { id: "a2", severity: "warning", title: "Tank 2 Diesel Variance –37 L",           detail: "GOIL Accra Central · Closing stock lower than expected" },
 ];
 
@@ -53,7 +53,7 @@ export default function CommandCenterPage() {
       <PageTitle
         eyebrow="Command Center"
         title="Station Dashboard"
-        subtitle={`Wednesday, 11 June 2026 · All stations`}
+        subtitle="Wednesday, 11-Jun-2026 · All stations"
         actions={
           <button className="btn btn-primary">
             <Clock size={13} />

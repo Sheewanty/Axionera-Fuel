@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { formatCurrency } from "@/lib/calculations";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
+import { formatDisplayDate } from "@/lib/business-date";
 
 export default async function MartCashCountPage({
   searchParams,
@@ -41,7 +42,7 @@ export default async function MartCashCountPage({
           <tbody>
             {records.map((record) => (
               <tr key={record.id}>
-                <td>{record.businessDate.toISOString().split("T")[0]}</td>
+                <td>{formatDisplayDate(record.businessDate)}</td>
                 <td>{record.dailySession.status.replace(/_/g, " ")}</td>
                 <td>{formatCurrency(Number(record.cashSales))}</td>
                 <td>{formatCurrency(Number(record.cashCount))}</td>

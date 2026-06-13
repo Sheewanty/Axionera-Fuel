@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { formatCurrency } from "@/lib/calculations";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
+import { formatDisplayDate } from "@/lib/business-date";
 
 export default async function BankDepositsPage({
   searchParams,
@@ -73,11 +74,11 @@ export default async function BankDepositsPage({
           <tbody>
             {deposits.map((deposit) => (
               <tr key={deposit.id}>
-                <td>{deposit.businessDate.toISOString().split("T")[0]}</td>
+                <td>{formatDisplayDate(deposit.businessDate)}</td>
                 <td>{formatCurrency(Number(deposit.amountToBank))}</td>
                 <td>{formatCurrency(Number(deposit.expectedCash))}</td>
                 <td>{formatCurrency(Number(deposit.variance))}</td>
-                <td>{deposit.bankCollectionDate?.toISOString().split("T")[0] ?? "-"}</td>
+                <td>{formatDisplayDate(deposit.bankCollectionDate)}</td>
                 <td>{deposit.bankCollectionReference ?? "-"}</td>
                 <td>{deposit.bankSignatureName ?? "-"}</td>
                 <td>{deposit.supervisorSignatureName ?? "-"}</td>

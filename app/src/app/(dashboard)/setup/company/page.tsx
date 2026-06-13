@@ -1,6 +1,7 @@
 import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireRole } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
+import { formatDisplayDate } from "@/lib/business-date";
 
 export default async function CompanyPage() {
   const session = await getRequiredSession();
@@ -85,11 +86,11 @@ export default async function CompanyPage() {
               </tr>
               <tr>
                 <td style={{ fontWeight: 600 }}>Created</td>
-                <td>{tenant.createdAt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                <td>{formatDisplayDate(tenant.createdAt)}</td>
               </tr>
               <tr>
                 <td style={{ fontWeight: 600 }}>Last Updated</td>
-                <td>{tenant.updatedAt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                <td>{formatDisplayDate(tenant.updatedAt)}</td>
               </tr>
             </tbody>
           </table>

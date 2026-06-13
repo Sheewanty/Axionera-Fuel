@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { formatCurrency } from "@/lib/calculations";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-import { currentBusinessDate } from "@/lib/business-date";
+import { currentBusinessDate, formatDisplayDate } from "@/lib/business-date";
 
 export default async function MartSummaryPage({
   searchParams,
@@ -43,7 +43,7 @@ export default async function MartSummaryPage({
       <PageTitle
         eyebrow="Mart Operations"
         title="Mart Summary"
-        subtitle={dailySession ? `${dailySession.station.name} - ${dailySession.businessDate.toISOString().split("T")[0]}` : "Open the daily session before reviewing mart sales."}
+        subtitle={dailySession ? `${dailySession.station.name} - ${formatDisplayDate(dailySession.businessDate)}` : "Open the daily session before reviewing mart sales."}
       />
 
       {!dailySession || !martSale ? (

@@ -2,7 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-import { currentBusinessDate } from "@/lib/business-date";
+import { currentBusinessDate, formatDisplayDate } from "@/lib/business-date";
 import PumpReadingsClient from "./PumpReadingsClient";
 
 export default async function PumpReadingsPage({
@@ -106,11 +106,7 @@ export default async function PumpReadingsPage({
     variance: Number(r.variance),
   }));
 
-  const formattedDate = dailySession.businessDate.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  const formattedDate = formatDisplayDate(dailySession.businessDate);
 
   return (
     <>

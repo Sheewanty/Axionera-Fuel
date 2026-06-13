@@ -69,7 +69,7 @@ export default function OwnerDashboardPage() {
       <PageTitle
         eyebrow="Owner Dashboard"
         title="Cross-Station Analytics"
-        subtitle="GOIL Ghana Ltd · All stations · 5–11 June 2026"
+        subtitle="GOIL Ghana Ltd · All stations · 05-Jun-2026 to 11-Jun-2026"
         actions={
           <div className="flex gap-2">
             <button className={`btn ${range === "7d" ? "btn-primary" : "btn-outline"} btn-sm`} onClick={() => setRange("7d")}>7 Days</button>

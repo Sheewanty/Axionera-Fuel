@@ -2,7 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-import { currentBusinessDate } from "@/lib/business-date";
+import { currentBusinessDate, formatDisplayDate } from "@/lib/business-date";
 import MartSalesClient from "./MartSalesClient";
 
 export default async function MartSalesPage({
@@ -53,11 +53,7 @@ export default async function MartSalesPage({
       })
     : null;
 
-  const formattedDate = dailySession?.businessDate.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  const formattedDate = formatDisplayDate(dailySession?.businessDate);
 
   return (
     <>
@@ -76,7 +72,7 @@ export default async function MartSalesPage({
           dailySession
             ? {
                 id: dailySession.id,
-                businessDate: dailySession.businessDate.toISOString().split("T")[0],
+                businessDate: formatDisplayDate(dailySession.businessDate),
                 shift: dailySession.shift,
                 status: dailySession.status,
               }

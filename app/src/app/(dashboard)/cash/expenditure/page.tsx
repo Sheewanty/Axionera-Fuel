@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db/prisma";
 import { listExpenditures } from "@/lib/db/expenditure.service";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-import { currentBusinessDate } from "@/lib/business-date";
+import { currentBusinessDate, formatDisplayDate } from "@/lib/business-date";
 import ExpenditureClient from "./ExpenditureClient";
 
 export default async function ExpenditurePage({
@@ -55,7 +55,7 @@ export default async function ExpenditurePage({
   const expenditures = expendituresDb.map((expense) => ({
     id: expense.id,
     dailySessionId: expense.dailySessionId,
-    businessDate: expense.businessDate.toISOString().split("T")[0],
+    businessDate: formatDisplayDate(expense.businessDate),
     voucherReference: expense.voucherReference,
     category: expense.category,
     amount: Number(expense.amount),
@@ -67,11 +67,7 @@ export default async function ExpenditurePage({
     createdAt: expense.createdAt.toISOString(),
   }));
 
-  const formattedDate = dailySession?.businessDate.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  const formattedDate = formatDisplayDate(dailySession?.businessDate);
 
   return (
     <>
@@ -90,7 +86,7 @@ export default async function ExpenditurePage({
           dailySession
             ? {
                 id: dailySession.id,
-                businessDate: dailySession.businessDate.toISOString().split("T")[0],
+                businessDate: formatDisplayDate(dailySession.businessDate),
                 shift: dailySession.shift,
                 status: dailySession.status,
               }

@@ -2,7 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-import { currentBusinessDate } from "@/lib/business-date";
+import { currentBusinessDate, formatDisplayDate } from "@/lib/business-date";
 import ProductDischargeClient from "./ProductDischargeClient";
 
 export default async function ProductDischargePage({
@@ -76,11 +76,7 @@ export default async function ProductDischargePage({
     productName: t.product.name,
   }));
 
-  const formattedDate = dailySession.businessDate.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  const formattedDate = formatDisplayDate(dailySession.businessDate);
 
   return (
     <>
