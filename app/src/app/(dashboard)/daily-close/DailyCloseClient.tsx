@@ -6,6 +6,7 @@ import { CheckCircle, Clock, AlertTriangle, LockOpen } from "lucide-react";
 import PageTitle from "@/components/ui/PageTitle";
 import KpiCard from "@/components/ui/KpiCard";
 import VarianceBadge from "@/components/ui/VarianceBadge";
+import Modal from "@/components/ui/Modal";
 import { formatCurrency, formatLitres } from "@/lib/calculations";
 import {
   openTodaySessionAction,
@@ -271,47 +272,62 @@ export default function DailyCloseClient({
         </div>
       </div>
 
-      {isReopenModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-6 border-b">
-              <h3 className="text-xl font-semibold text-red-600">Reopen Daily Session</h3>
-            </div>
-            <form onSubmit={handleReopen} className="p-6 space-y-4">
-              <p className="text-sm text-gray-600">
-                Reopening an approved session will allow modifications to its data. This action is audited.
-              </p>
-              <div className="space-y-1">
-                <label className="text-sm font-medium">Reason for Reopening *</label>
-                <textarea
-                  name="reason"
-                  required
-                  rows={3}
-                  className="w-full border rounded p-2"
-                  placeholder="Explain why this session needs to be reopened..."
-                />
-              </div>
-              <div className="flex justify-end gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => setIsReopenModalOpen(false)}
-                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-                >
-                  {isSubmitting ? "Reopening..." : "Reopen Session"}
-                </button>
-              </div>
-            </form>
+      <Modal
+        open={isReopenModalOpen}
+        title="Reopen Daily Session"
+        onClose={() => {
+          if (!isSubmitting) setIsReopenModalOpen(false);
+        }}
+        size="md"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setIsReopenModalOpen(false)}
+              className="btn btn-outline"
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="reopen-session-form"
+              disabled={isSubmitting}
+              className="btn btn-primary"
+              style={{ background: "var(--ax-red)", borderColor: "var(--ax-red)" }}
+            >
+              {isSubmitting ? "Reopening..." : "Reopen Session"}
+            </button>
+          </>
+        }
+      >
+        <form id="reopen-session-form" onSubmit={handleReopen}>
+          <div
+            style={{
+              background: "color-mix(in srgb, var(--ax-amber) 10%, white)",
+              border: "1px solid color-mix(in srgb, var(--ax-amber) 35%, white)",
+              borderRadius: 8,
+              color: "var(--ax-blue)",
+              fontSize: 14,
+              lineHeight: 1.45,
+              marginBottom: 16,
+              padding: "10px 12px",
+            }}
+          >
+            Reopening an approved session will allow modifications to its data. This action is audited.
           </div>
-        </div>
-      )}
+          <div className="form-group">
+            <label className="form-label">Reason for Reopening *</label>
+            <textarea
+              name="reason"
+              required
+              rows={3}
+              className="form-textarea"
+              placeholder="Explain why this session needs to be reopened..."
+            />
+          </div>
+        </form>
+      </Modal>
     </>
   );
 }
