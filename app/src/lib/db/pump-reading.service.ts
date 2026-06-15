@@ -1,11 +1,10 @@
 import { Db } from "./types";
-import { CreatePumpReadingInput } from "../schemas/pump-reading.schema";
+import { ClosePumpReadingInput, OpenPumpReadingInput } from "../schemas/pump-reading.schema";
 import { calcLitresSold, calcExpectedAmount, calcNozzleVariance } from "../calculations";
 
-export async function createPumpReading(
+async function validateSessionAndNozzle(
   tenantId: string,
-  userId: string,
-  input: CreatePumpReadingInput,
+  input: OpenPumpReadingInput | ClosePumpReadingInput,
   db: Db
 ) {
   const session = await db.dailySession.findUnique({
@@ -16,6 +15,9 @@ export async function createPumpReading(
   }
   if (session.status === "APPROVED") {
     throw new Error("Cannot modify an approved session");
+  }
+  if (session.status !== "OPEN" && session.status !== "REOPENED") {
+    throw new Error(`Cannot modify pump readings while session is ${session.status}`);
   }
 
   const nozzle = await db.nozzle.findUnique({
@@ -28,22 +30,6 @@ export async function createPumpReading(
     throw new Error("Nozzle pump or product mismatch");
   }
 
-  // Prevent duplicates
-  const existingReading = await db.pumpReading.findFirst({
-    where: { dailySessionId: input.dailySessionId, nozzleId: input.nozzleId, tenantId },
-  });
-  if (existingReading) {
-    throw new Error("Pump reading already exists for this nozzle in this session");
-  }
-
-  // Server-derived previous meter
-  const latestReading = await db.pumpReading.findFirst({
-    where: { nozzleId: input.nozzleId, tenantId },
-    orderBy: { createdAt: "desc" },
-  });
-  const previousLitre = latestReading ? Number(latestReading.currentLitre) : 0;
-
-  // Server-derived price
   const latestPrice = await db.priceHistory.findFirst({
     where: { productId: input.productId, stationId: input.stationId, tenantId },
     orderBy: { effectiveFrom: "desc" },
@@ -54,24 +40,39 @@ export async function createPumpReading(
     throw new Error("Active price not found or invalid for this product");
   }
 
-  if (input.currentLitre < previousLitre) {
-    throw new Error(`Current meter reading (${input.currentLitre}) cannot be less than previous reading (${previousLitre})`);
+  return { pricePerLitre };
+}
+
+export async function recordOpeningPumpReading(
+  tenantId: string,
+  userId: string,
+  input: OpenPumpReadingInput,
+  db: Db
+) {
+  const { pricePerLitre } = await validateSessionAndNozzle(tenantId, input, db);
+
+  const existingReading = await db.pumpReading.findFirst({
+    where: { dailySessionId: input.dailySessionId, nozzleId: input.nozzleId, tenantId },
+  });
+  if (existingReading) {
+    throw new Error("Opening meter already exists for this nozzle in this session");
   }
 
-  // Derive calculations server-side using server values
-  const litresSold = calcLitresSold(input.currentLitre, previousLitre);
-  const amountExpected = calcExpectedAmount(litresSold, pricePerLitre);
+  const latestReading = await db.pumpReading.findFirst({
+    where: {
+      nozzleId: input.nozzleId,
+      tenantId,
+      isClosingRecorded: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const previousClosingLitre = latestReading ? Number(latestReading.currentLitre) : 0;
 
-  const variance = calcNozzleVariance(
-    input.cashReceived,
-    input.gocardAmount,
-    input.couponAmount,
-    input.ghqrAmount,
-    input.creditorsAmount,
-    amountExpected
-  );
+  if (input.openingLitre < previousClosingLitre) {
+    throw new Error(`Opening meter reading (${input.openingLitre}) cannot be less than previous closing reading (${previousClosingLitre})`);
+  }
 
-  const reading = await db.pumpReading.create({
+  return db.pumpReading.create({
     data: {
       tenantId,
       stationId: input.stationId,
@@ -82,24 +83,74 @@ export async function createPumpReading(
       nozzleId: input.nozzleId,
       productId: input.productId,
       attendantId: input.attendantId || null,
-      
-      previousLitre: previousLitre,
+      previousLitre: input.openingLitre,
+      currentLitre: input.openingLitre,
+      litresSold: 0,
+      pricePerLitre,
+      amountExpected: 0,
+      cashReceived: 0,
+      gocardAmount: 0,
+      couponAmount: 0,
+      ghqrAmount: 0,
+      creditorsAmount: 0,
+      variance: 0,
+      isClosingRecorded: false,
+      remarks: input.remarks,
+      createdBy: userId,
+    },
+  });
+}
+
+export async function recordClosingPumpReading(
+  tenantId: string,
+  userId: string,
+  input: ClosePumpReadingInput,
+  db: Db
+) {
+  const { pricePerLitre } = await validateSessionAndNozzle(tenantId, input, db);
+
+  const existingReading = await db.pumpReading.findFirst({
+    where: { dailySessionId: input.dailySessionId, nozzleId: input.nozzleId, tenantId },
+  });
+  if (!existingReading) {
+    throw new Error("Opening meter must be recorded before closing meter for this nozzle");
+  }
+  if (existingReading.isClosingRecorded) {
+    throw new Error("Closing meter already exists for this nozzle in this session");
+  }
+
+  const openingLitre = Number(existingReading.previousLitre);
+  if (input.currentLitre < openingLitre) {
+    throw new Error(`Closing meter reading (${input.currentLitre}) cannot be less than opening reading (${openingLitre})`);
+  }
+
+  const litresSold = calcLitresSold(input.currentLitre, openingLitre);
+  const amountExpected = calcExpectedAmount(litresSold, pricePerLitre);
+  const variance = calcNozzleVariance(
+    input.cashReceived,
+    input.gocardAmount,
+    input.couponAmount,
+    input.ghqrAmount,
+    input.creditorsAmount,
+    amountExpected
+  );
+
+  return db.pumpReading.update({
+    where: { id: existingReading.id },
+    data: {
       currentLitre: input.currentLitre,
       litresSold,
-      pricePerLitre: pricePerLitre,
+      pricePerLitre,
       amountExpected,
-      
       cashReceived: input.cashReceived,
       gocardAmount: input.gocardAmount,
       couponAmount: input.couponAmount,
       ghqrAmount: input.ghqrAmount,
       creditorsAmount: input.creditorsAmount,
       variance,
-      
+      isClosingRecorded: true,
       remarks: input.remarks,
-      createdBy: userId,
+      updatedBy: userId,
     },
   });
-
-  return reading;
 }

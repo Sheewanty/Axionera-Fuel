@@ -74,7 +74,7 @@ export default async function PumpReadingsPage({
   // Fetch the latest reading for each nozzle to determine previousMeter
   for (const nozzle of nozzles) {
     const latestReading = await prisma.pumpReading.findFirst({
-      where: { nozzleId: nozzle.id, tenantId: session.user.tenantId },
+      where: { nozzleId: nozzle.id, tenantId: session.user.tenantId, isClosingRecorded: true },
       orderBy: { createdAt: "desc" },
     });
     nozzle.previousMeter = latestReading ? Number(latestReading.currentLitre) : 0;
@@ -91,10 +91,12 @@ export default async function PumpReadingsPage({
     id: r.id,
     pump: r.nozzle.pump.name,
     nozzle: r.nozzle.name,
+    nozzleId: r.nozzleId,
     product: r.product.name,
-    attendant: "Attendant", // We can join user if attendantId exists
-    previousMeter: Number(r.previousLitre),
-    currentMeter: Number(r.currentLitre),
+    productId: r.productId,
+    pumpId: r.pumpId,
+    openingMeter: Number(r.previousLitre),
+    closingMeter: Number(r.currentLitre),
     litresSold: Number(r.litresSold),
     pricePerLitre: Number(r.pricePerLitre),
     amountExpected: Number(r.amountExpected),
@@ -104,6 +106,7 @@ export default async function PumpReadingsPage({
     ghqrAmount: Number(r.ghqrAmount),
     creditorsAmount: Number(r.creditorsAmount),
     variance: Number(r.variance),
+    isClosingRecorded: r.isClosingRecorded,
   }));
 
   const formattedDate = formatDisplayDate(dailySession.businessDate);

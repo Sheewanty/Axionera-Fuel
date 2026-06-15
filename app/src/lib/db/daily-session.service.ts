@@ -87,6 +87,23 @@ export async function closeSession(
   if (session.pumpReadings.length === 0) {
     throw new Error("Cannot close session: No pump readings recorded");
   }
+
+  const activeNozzles = await db.nozzle.findMany({
+    where: { tenantId, stationId, status: "ACTIVE" },
+    select: { id: true, name: true },
+  });
+  const closedNozzleIds = new Set(
+    session.pumpReadings
+      .filter((reading) => reading.isClosingRecorded)
+      .map((reading) => reading.nozzleId)
+  );
+  const missingClosedNozzles = activeNozzles.filter((nozzle) => !closedNozzleIds.has(nozzle.id));
+  if (missingClosedNozzles.length > 0) {
+    throw new Error(
+      `Cannot close session: Closing pump readings missing for ${missingClosedNozzles.map((nozzle) => nozzle.name).join(", ")}`
+    );
+  }
+
   if (session.tankDippings.length === 0) {
     throw new Error("Cannot close session: No tank dippings recorded");
   }

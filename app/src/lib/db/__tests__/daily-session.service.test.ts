@@ -66,13 +66,16 @@ describe("DailySession Service", () => {
             tenantId: "tenant_1",
             stationId: "station_1",
             status: "OPEN",
-            pumpReadings: [{ id: "pr_1" }],
+            pumpReadings: [{ id: "pr_1", nozzleId: "nozzle_1", isClosingRecorded: true }],
             tankDippings: [{ id: "td_1", receiptsLitres: 0 }],
             cashCollections: [{ id: "cc_1" }],
             productDischarges: [],
             martSales: [{ id: "ms_1" }],
           }),
           update: vi.fn().mockResolvedValue({ id: "sess_1", status: "READY_FOR_REVIEW" }),
+        },
+        nozzle: {
+          findMany: vi.fn().mockResolvedValue([{ id: "nozzle_1", name: "Nozzle A" }]),
         },
       };
 
@@ -133,6 +136,29 @@ describe("DailySession Service", () => {
           .rejects.toThrow("Cannot close session: No pump readings recorded");
       });
 
+      it("throws if any active nozzle is missing a closing pump reading", async () => {
+        const mockDb = {
+          dailySession: {
+            findUnique: vi.fn().mockResolvedValue({
+              id: "sess_1",
+              tenantId: "tenant_1",
+              stationId: "station_1",
+              status: "OPEN",
+              pumpReadings: [{ id: "pr_1", nozzleId: "nozzle_1", isClosingRecorded: false }],
+              tankDippings: [{ id: "td_1", receiptsLitres: 0 }],
+              cashCollections: [{ id: "cc_1" }],
+              productDischarges: [],
+              martSales: [{ id: "ms_1" }],
+            }),
+          },
+          nozzle: {
+            findMany: vi.fn().mockResolvedValue([{ id: "nozzle_1", name: "Nozzle A" }]),
+          },
+        };
+        await expect(closeSession("tenant_1", "station_1", "user_1", "sess_1", mockDb as unknown as Db))
+          .rejects.toThrow("Cannot close session: Closing pump readings missing for Nozzle A");
+      });
+
       it("throws if tank dipping declares receipts but no discharge exists", async () => {
         const mockDb = {
           dailySession: {
@@ -141,12 +167,15 @@ describe("DailySession Service", () => {
               tenantId: "tenant_1",
               stationId: "station_1",
               status: "OPEN",
-              pumpReadings: [{ id: "pr_1" }],
+              pumpReadings: [{ id: "pr_1", nozzleId: "nozzle_1", isClosingRecorded: true }],
               tankDippings: [{ tankId: "tank_1", receiptsLitres: 1000 }],
               cashCollections: [{ id: "cc_1" }],
               productDischarges: [],
               martSales: [{ id: "ms_1" }],
             }),
+          },
+          nozzle: {
+            findMany: vi.fn().mockResolvedValue([{ id: "nozzle_1", name: "Nozzle A" }]),
           },
         };
         await expect(closeSession("tenant_1", "station_1", "user_1", "sess_1", mockDb as unknown as Db))
@@ -161,12 +190,15 @@ describe("DailySession Service", () => {
               tenantId: "tenant_1",
               stationId: "station_1",
               status: "OPEN",
-              pumpReadings: [{ id: "pr_1" }],
+              pumpReadings: [{ id: "pr_1", nozzleId: "nozzle_1", isClosingRecorded: true }],
               tankDippings: [{ tankId: "tank_1", receiptsLitres: 5000 }],
               cashCollections: [{ id: "cc_1" }],
               productDischarges: [{ tankId: "tank_1", productDischargedLitres: 4950, topUpLitres: 0 }],
               martSales: [{ id: "ms_1" }],
             }),
+          },
+          nozzle: {
+            findMany: vi.fn().mockResolvedValue([{ id: "nozzle_1", name: "Nozzle A" }]),
           },
         };
         await expect(closeSession("tenant_1", "station_1", "user_1", "sess_1", mockDb as unknown as Db))
@@ -181,13 +213,16 @@ describe("DailySession Service", () => {
               tenantId: "tenant_1",
               stationId: "station_1",
               status: "OPEN",
-              pumpReadings: [{ id: "pr_1" }],
+              pumpReadings: [{ id: "pr_1", nozzleId: "nozzle_1", isClosingRecorded: true }],
               tankDippings: [{ tankId: "tank_1", receiptsLitres: 5000 }],
               cashCollections: [{ id: "cc_1" }],
               productDischarges: [{ tankId: "tank_1", productDischargedLitres: 4950, topUpLitres: 50.005 }], // total 5000.005, diff is 0.005 <= 0.01
               martSales: [{ id: "ms_1" }],
             }),
             update: vi.fn().mockResolvedValue({ status: "READY_FOR_REVIEW" }),
+          },
+          nozzle: {
+            findMany: vi.fn().mockResolvedValue([{ id: "nozzle_1", name: "Nozzle A" }]),
           },
         };
         
@@ -203,12 +238,15 @@ describe("DailySession Service", () => {
               tenantId: "tenant_1",
               stationId: "station_1",
               status: "OPEN",
-              pumpReadings: [{ id: "pr_1" }],
+              pumpReadings: [{ id: "pr_1", nozzleId: "nozzle_1", isClosingRecorded: true }],
               tankDippings: [{ id: "td_1", receiptsLitres: 0 }],
               cashCollections: [{ id: "cc_1" }],
               productDischarges: [],
               martSales: [],
             }),
+          },
+          nozzle: {
+            findMany: vi.fn().mockResolvedValue([{ id: "nozzle_1", name: "Nozzle A" }]),
           },
         };
         await expect(closeSession("tenant_1", "station_1", "user_1", "sess_1", mockDb as unknown as Db))

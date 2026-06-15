@@ -1,208 +1,165 @@
 import { describe, it, expect, vi } from "vitest";
-import { createPumpReading } from "../pump-reading.service";
+import { recordClosingPumpReading, recordOpeningPumpReading } from "../pump-reading.service";
 import { Db } from "../types";
 
 describe("PumpReading Service", () => {
-  it("calculates sales and variance and creates a reading", async () => {
-    const mockDb = {
-      dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },
+  function baseDb(overrides: object = {}) {
+    return {
+      dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1", status: "OPEN" }) },
       nozzle: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1", pumpId: "p_1", productId: "prod_1" }) },
-      pumpReading: { 
-        create: vi.fn().mockResolvedValue({ id: "reading_123" }),
+      priceHistory: { findFirst: vi.fn().mockResolvedValue({ pricePerLitre: 20 }) },
+      pumpReading: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({ id: "reading_open" }),
+        update: vi.fn().mockResolvedValue({ id: "reading_closed" }),
+      },
+      ...overrides,
+    };
+  }
+
+  const openingInput = {
+    stationId: "st_1",
+    dailySessionId: "sess_1",
+    businessDate: "2026-06-11",
+    shift: "DAY" as const,
+    pumpId: "p_1",
+    nozzleId: "n_1",
+    productId: "prod_1",
+    openingLitre: 2000,
+  };
+
+  const closingInput = {
+    stationId: "st_1",
+    dailySessionId: "sess_1",
+    businessDate: "2026-06-11",
+    shift: "DAY" as const,
+    pumpId: "p_1",
+    nozzleId: "n_1",
+    productId: "prod_1",
+    currentLitre: 2500,
+    cashReceived: 9000,
+    gocardAmount: 500,
+    couponAmount: 250,
+    ghqrAmount: 250,
+    creditorsAmount: 0,
+  };
+
+  it("records an opening meter without sales or payment values", async () => {
+    const db = baseDb({
+      pumpReading: {
         findFirst: vi.fn().mockImplementation(({ orderBy }) => {
-          if (orderBy) return Promise.resolve({ currentLitre: 1000 }); // previous meter
-          return Promise.resolve(null); // duplicate check
-        }),
-      },
-      priceHistory: {
-        findFirst: vi.fn().mockResolvedValue({ pricePerLitre: 15.00 }),
-      },
-    };
-
-    const input = {
-      stationId: "st_1",
-      dailySessionId: "sess_1",
-      businessDate: "2026-06-11",
-      shift: "DAY" as const,
-      pumpId: "p_1",
-      nozzleId: "n_1",
-      productId: "prod_1",
-      previousLitre: 1000,
-      currentLitre: 1500, // 500L sold
-      pricePerLitre: 15.00, // expected 7500
-      cashReceived: 6000,
-      gocardAmount: 1000,
-      couponAmount: 500, // total collected 7500
-      ghqrAmount: 0,
-      creditorsAmount: 0,
-    };
-
-    const result = await createPumpReading("tenant_1", "user_1", input, mockDb as unknown as Db);
-
-    expect(result.id).toBe("reading_123");
-    expect(mockDb.pumpReading.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        tenantId: "tenant_1",
-        litresSold: 500,
-        amountExpected: 7500,
-        variance: 0, // perfect
-      }),
-    });
-  });
-
-  it("ignores tampered input values and uses server-derived values", async () => {
-    const mockDb = {
-      dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },
-      nozzle: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1", pumpId: "p_1", productId: "prod_1" }) },
-      pumpReading: { 
-        create: vi.fn().mockResolvedValue({ id: "reading_999" }),
-        findFirst: vi.fn().mockImplementation(({ orderBy }) => {
-          if (orderBy) return Promise.resolve({ currentLitre: 2000 }); // server true previous meter
-          return Promise.resolve(null); // duplicate check
-        }),
-      },
-      priceHistory: {
-        findFirst: vi.fn().mockResolvedValue({ pricePerLitre: 20.00 }), // server true price
-      },
-    };
-
-    const tamperedInput = {
-      stationId: "st_1",
-      dailySessionId: "sess_1",
-      businessDate: "2026-06-11",
-      shift: "DAY" as const,
-      pumpId: "p_1",
-      nozzleId: "n_1",
-      productId: "prod_1",
-      previousLitre: 1000, // Client tampered (should be 2000)
-      currentLitre: 2500,  // True sold = 500 (2500 - 2000). Tampered sold = 1500
-      pricePerLitre: 10.00, // Client tampered (should be 20.00)
-      cashReceived: 10000,
-      gocardAmount: 0,
-      couponAmount: 0,
-      ghqrAmount: 0,
-      creditorsAmount: 0,
-    };
-
-    const result = await createPumpReading("tenant_1", "user_1", tamperedInput, mockDb as unknown as Db);
-
-    expect(result.id).toBe("reading_999");
-    expect(mockDb.pumpReading.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        previousLitre: 2000, // used server value
-        pricePerLitre: 20.00, // used server value
-        litresSold: 500, // calculated from server values
-        amountExpected: 10000, // 500 * 20.00
-        variance: 0, // 10000 cash - 10000 expected
-      }),
-    });
-  });
-
-  it("rejects when current reading is less than server previous reading", async () => {
-    const mockDb = {
-      dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },
-      nozzle: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1", pumpId: "p_1", productId: "prod_1" }) },
-      pumpReading: { 
-        create: vi.fn(),
-        findFirst: vi.fn().mockImplementation(({ orderBy }) => {
-          if (orderBy) return Promise.resolve({ currentLitre: 3000 }); // Server previous = 3000
+          if (orderBy) return Promise.resolve({ currentLitre: 1000 });
           return Promise.resolve(null);
         }),
+        create: vi.fn().mockResolvedValue({ id: "reading_open" }),
       },
-      priceHistory: {
-        findFirst: vi.fn().mockResolvedValue({ pricePerLitre: 20.00 }),
+    });
+
+    const result = await recordOpeningPumpReading("tenant_1", "user_1", openingInput, db as unknown as Db);
+
+    expect(result.id).toBe("reading_open");
+    expect(db.pumpReading.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        previousLitre: 2000,
+        currentLitre: 2000,
+        litresSold: 0,
+        amountExpected: 0,
+        cashReceived: 0,
+        gocardAmount: 0,
+        couponAmount: 0,
+        ghqrAmount: 0,
+        creditorsAmount: 0,
+        variance: 0,
+        isClosingRecorded: false,
+      }),
+    });
+  });
+
+  it("rejects opening meter lower than the previous closing meter", async () => {
+    const db = baseDb({
+      pumpReading: {
+        findFirst: vi.fn().mockImplementation(({ orderBy }) => {
+          if (orderBy) return Promise.resolve({ currentLitre: 3000 });
+          return Promise.resolve(null);
+        }),
+        create: vi.fn(),
       },
-    };
+    });
 
-    const input = {
-      stationId: "st_1",
-      dailySessionId: "sess_1",
-      businessDate: "2026-06-11",
-      shift: "DAY" as const,
-      pumpId: "p_1",
-      nozzleId: "n_1",
-      productId: "prod_1",
-      previousLitre: 1000,
-      currentLitre: 2500, // less than 3000
-      pricePerLitre: 20.00,
-      cashReceived: 10000,
-      gocardAmount: 0,
-      couponAmount: 0,
-      ghqrAmount: 0,
-      creditorsAmount: 0,
-    };
+    await expect(recordOpeningPumpReading("tenant_1", "user_1", openingInput, db as unknown as Db))
+      .rejects.toThrow("Opening meter reading (2000) cannot be less than previous closing reading (3000)");
+  });
 
-    await expect(createPumpReading("tenant_1", "user_1", input, mockDb as unknown as Db))
-      .rejects.toThrow("Current meter reading (2500) cannot be less than previous reading (3000)");
+  it("calculates closing sales and variance from stored opening meter and server price", async () => {
+    const db = baseDb({
+      pumpReading: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "reading_open",
+          previousLitre: 2000,
+          isClosingRecorded: false,
+        }),
+        update: vi.fn().mockResolvedValue({ id: "reading_open" }),
+      },
+    });
+
+    const result = await recordClosingPumpReading("tenant_1", "user_1", closingInput, db as unknown as Db);
+
+    expect(result.id).toBe("reading_open");
+    expect(db.pumpReading.update).toHaveBeenCalledWith({
+      where: { id: "reading_open" },
+      data: expect.objectContaining({
+        currentLitre: 2500,
+        litresSold: 500,
+        pricePerLitre: 20,
+        amountExpected: 10000,
+        cashReceived: 9000,
+        gocardAmount: 500,
+        couponAmount: 250,
+        ghqrAmount: 250,
+        variance: 0,
+        isClosingRecorded: true,
+        updatedBy: "user_1",
+      }),
+    });
+  });
+
+  it("requires an opening meter before closing sales", async () => {
+    const db = baseDb();
+
+    await expect(recordClosingPumpReading("tenant_1", "user_1", closingInput, db as unknown as Db))
+      .rejects.toThrow("Opening meter must be recorded before closing meter for this nozzle");
+  });
+
+  it("rejects duplicate closing sales", async () => {
+    const db = baseDb({
+      pumpReading: {
+        findFirst: vi.fn().mockResolvedValue({ id: "reading_open", previousLitre: 2000, isClosingRecorded: true }),
+        update: vi.fn(),
+      },
+    });
+
+    await expect(recordClosingPumpReading("tenant_1", "user_1", closingInput, db as unknown as Db))
+      .rejects.toThrow("Closing meter already exists for this nozzle in this session");
+  });
+
+  it("rejects when closing meter is less than opening meter", async () => {
+    const db = baseDb({
+      pumpReading: {
+        findFirst: vi.fn().mockResolvedValue({ id: "reading_open", previousLitre: 3000, isClosingRecorded: false }),
+        update: vi.fn(),
+      },
+    });
+
+    await expect(recordClosingPumpReading("tenant_1", "user_1", closingInput, db as unknown as Db))
+      .rejects.toThrow("Closing meter reading (2500) cannot be less than opening reading (3000)");
   });
 
   it("rejects when no active price is found", async () => {
-    const mockDb = {
-      dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },
-      nozzle: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1", pumpId: "p_1", productId: "prod_1" }) },
-      pumpReading: { 
-        create: vi.fn(),
-        findFirst: vi.fn().mockResolvedValue(null),
-      },
-      priceHistory: {
-        findFirst: vi.fn().mockResolvedValue(null), // No price found
-      },
-    };
+    const db = baseDb({
+      priceHistory: { findFirst: vi.fn().mockResolvedValue(null) },
+    });
 
-    const input = {
-      stationId: "st_1",
-      dailySessionId: "sess_1",
-      businessDate: "2026-06-11",
-      shift: "DAY" as const,
-      pumpId: "p_1",
-      nozzleId: "n_1",
-      productId: "prod_1",
-      previousLitre: 1000,
-      currentLitre: 1500,
-      pricePerLitre: 20.00,
-      cashReceived: 10000,
-      gocardAmount: 0,
-      couponAmount: 0,
-      ghqrAmount: 0,
-      creditorsAmount: 0,
-    };
-
-    await expect(createPumpReading("tenant_1", "user_1", input, mockDb as unknown as Db))
-      .rejects.toThrow("Active price not found or invalid for this product");
-  });
-
-  it("rejects when active price is zero or negative", async () => {
-    const mockDb = {
-      dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },
-      nozzle: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1", pumpId: "p_1", productId: "prod_1" }) },
-      pumpReading: { 
-        create: vi.fn(),
-        findFirst: vi.fn().mockResolvedValue(null),
-      },
-      priceHistory: {
-        findFirst: vi.fn().mockResolvedValue({ pricePerLitre: 0 }), // Zero price
-      },
-    };
-
-    const input = {
-      stationId: "st_1",
-      dailySessionId: "sess_1",
-      businessDate: "2026-06-11",
-      shift: "DAY" as const,
-      pumpId: "p_1",
-      nozzleId: "n_1",
-      productId: "prod_1",
-      previousLitre: 1000,
-      currentLitre: 1500,
-      pricePerLitre: 20.00,
-      cashReceived: 10000,
-      gocardAmount: 0,
-      couponAmount: 0,
-      ghqrAmount: 0,
-      creditorsAmount: 0,
-    };
-
-    await expect(createPumpReading("tenant_1", "user_1", input, mockDb as unknown as Db))
+    await expect(recordOpeningPumpReading("tenant_1", "user_1", openingInput, db as unknown as Db))
       .rejects.toThrow("Active price not found or invalid for this product");
   });
 });

@@ -248,32 +248,33 @@ model DailySession {
 }
 
 model PumpReading {
-  id              String   @id @default(cuid())
-  tenantId        String
-  stationId       String
-  dailySessionId  String
-  businessDate    DateTime @db.Date
-  shift           String
-  pumpId          String
-  nozzleId        String
-  productId       String
-  attendantId     String?
-  previousLitre   Decimal  @db.Decimal(12, 2)
-  currentLitre    Decimal  @db.Decimal(12, 2)
-  litresSold      Decimal  @db.Decimal(12, 2) // server computed
-  pricePerLitre   Decimal  @db.Decimal(10, 4)
-  amountExpected  Decimal  @db.Decimal(12, 2) // server computed
-  cashReceived    Decimal  @db.Decimal(12, 2)
-  gocardAmount    Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
-  couponAmount    Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
-  ghqrAmount      Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
-  creditorsAmount Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
-  variance        Decimal  @db.Decimal(12, 2) // server computed: totalCollected - amountExpected
-  remarks         String?
-  createdBy       String
-  updatedBy       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                String   @id @default(cuid())
+  tenantId          String
+  stationId         String
+  dailySessionId    String
+  businessDate      DateTime @db.Date
+  shift             String
+  pumpId            String
+  nozzleId          String
+  productId         String
+  attendantId       String?
+  previousLitre     Decimal  @db.Decimal(12, 2)
+  currentLitre      Decimal  @db.Decimal(12, 2)
+  litresSold        Decimal  @db.Decimal(12, 2) // server computed
+  pricePerLitre     Decimal  @db.Decimal(10, 4)
+  amountExpected    Decimal  @db.Decimal(12, 2) // server computed
+  cashReceived      Decimal  @db.Decimal(12, 2)
+  gocardAmount      Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
+  couponAmount      Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
+  ghqrAmount        Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
+  creditorsAmount   Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
+  variance          Decimal  @db.Decimal(12, 2) // server computed: totalCollected - amountExpected
+  isClosingRecorded Boolean  @default(true)
+  remarks           String?
+  createdBy         String
+  updatedBy         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   station      Station      @relation(fields: [stationId], references: [id])
   dailySession DailySession @relation(fields: [dailySessionId], references: [id])
