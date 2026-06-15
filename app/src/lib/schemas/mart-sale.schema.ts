@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { correctionReasonSchema } from "../corrections";
 
 const optionalText = z.preprocess(
   (value) => (value === "" ? undefined : value),
@@ -22,6 +23,7 @@ export const createMartSaleSchema = z.object({
 
 export const updateMartSaleSchema = createMartSaleSchema.extend({
   id: z.string().min(1, "Mart sale ID is required"),
+  correctionReason: correctionReasonSchema,
 });
 
 export type CreateMartSaleInput = z.infer<typeof createMartSaleSchema>;

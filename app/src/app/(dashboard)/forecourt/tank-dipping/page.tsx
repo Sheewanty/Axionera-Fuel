@@ -75,7 +75,9 @@ export default async function TankDippingPage({
 
   const dippings = dippingsDb.map((d) => ({
     id: d.id,
+    tankId: d.tankId,
     tank: d.tank.name,
+    productId: d.productId,
     product: d.product.name,
     openingStock: Number(d.openingStockLitres),
     receipts: Number(d.receiptsLitres),
@@ -84,6 +86,7 @@ export default async function TankDippingPage({
     varianceLitres: Number(d.varianceLitres),
     waterTest: d.waterTestStatus,
     closingDipCm: d.closingDipCm ? Number(d.closingDipCm) : null,
+    remarks: d.remarks,
   }));
 
   const formattedDate = formatDisplayDate(dailySession.businessDate);

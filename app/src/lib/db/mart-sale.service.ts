@@ -2,6 +2,7 @@ import type { MartSale } from "@prisma/client";
 import type { Db } from "./types";
 import type { CreateMartSaleInput, UpdateMartSaleInput } from "../schemas/mart-sale.schema";
 import { calcMartNetSales, calcMartVariance } from "../calculations";
+import { appendCorrectionNote } from "../corrections";
 
 const LOCKED_SESSION_STATUSES = new Set(["READY_FOR_REVIEW", "APPROVED"]);
 
@@ -101,7 +102,7 @@ export async function updateMartSale(db: Db, input: UpdateMartSaleServiceInput):
       netMartSales,
       cashCount: input.cashCount,
       variance,
-      remarks: input.remarks,
+      remarks: appendCorrectionNote(input.remarks ?? existing.remarks, input.correctionReason),
       updatedBy: input.updatedBy,
     },
   });

@@ -16,6 +16,7 @@ import {
   updateProductDischargeSchema,
   deleteProductDischargeSchema,
 } from "../schemas/product-discharge.schema";
+import { CORRECTION_ROLES } from "../corrections";
 
 export type ActionResponse = {
   success: boolean;
@@ -75,7 +76,8 @@ export const updateProductDischargeAction = async (input: ClientUpdateDischargeI
       action: "UPDATE",
       getStationId: () => parsed.data.stationId,
       getEntityId: () => parsed.data.id,
-      roles: ["SUPERVISOR", "STATION_MANAGER", "ADMIN", "OWNER"],
+      getAfter: () => ({ correctionReason: parsed.data.correctionReason }),
+      roles: CORRECTION_ROLES,
     },
     async (session: AuthSession, tx: Db): Promise<{ id: string }> => {
       const discharge = await updateProductDischarge(tx, {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { correctionReasonSchema } from "../corrections";
 
 const optionalText = z.preprocess(
   (value) => (value === "" ? undefined : value),
@@ -31,6 +32,7 @@ export const createExpenditureSchema = z.object({
 
 export const updateExpenditureSchema = createExpenditureSchema.extend({
   id: z.string().min(1, "Expenditure ID is required"),
+  correctionReason: correctionReasonSchema,
 });
 
 export const deleteExpenditureSchema = z.object({

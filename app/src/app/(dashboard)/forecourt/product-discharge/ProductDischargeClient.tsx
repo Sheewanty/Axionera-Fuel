@@ -2,20 +2,36 @@
 
 import { useState } from "react";
 import Modal from "@/components/ui/Modal";
-import { Plus } from "lucide-react";
-import { createProductDischargeAction } from "@/lib/actions/product-discharge.actions";
+import { Edit, Plus } from "lucide-react";
+import { createProductDischargeAction, updateProductDischargeAction } from "@/lib/actions/product-discharge.actions";
 import { useRouter } from "next/navigation";
 
 type DischargeSummary = {
   id: string;
+  tankId: string;
+  productId: string;
   tank: string;
   product: string;
   supplierName: string;
   invoiceNumber: string;
+  invoiceMeasurement: number;
+  stationMeasurement: number | null;
   productDischargedLitres: number;
+  beforeTankLitres: number;
+  afterTankLitres: number;
   dischargeVarianceLitres: number;
   topUpLitres: number;
   expectedTankAfterDischarge: number;
+  vehicleRegistrationNumber: string | null;
+  driverName: string | null;
+  stationSupervisorName: string | null;
+  couplingHeightCm: number | null;
+  tbar: number | null;
+  calibrationCertificate: string | null;
+  sealNumbers: string | null;
+  sealNumbersContinued: string | null;
+  compartmentNumber: string | null;
+  remarks: string | null;
 };
 
 type TankDef = {
@@ -42,6 +58,7 @@ export default function ProductDischargeClient({
 }: Props) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [correctionTarget, setCorrectionTarget] = useState<DischargeSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +86,7 @@ export default function ProductDischargeClient({
   const [compartmentNumber, setCompartmentNumber] = useState("");
   const [stationMeasurement, setStationMeasurement] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
 
   const selectedTank = tanks.find((t) => t.id === tankId);
 
@@ -111,11 +129,14 @@ export default function ProductDischargeClient({
     };
 
     try {
-      const res = await createProductDischargeAction(payload);
+      const res = correctionTarget
+        ? await updateProductDischargeAction({ ...payload, id: correctionTarget.id, correctionReason })
+        : await createProductDischargeAction(payload);
       if (!res.success) {
         throw new Error(res.error || "Failed to create discharge record");
       }
       setIsModalOpen(false);
+      setCorrectionTarget(null);
       router.refresh();
       // Reset form (for brevity, keeping simple)
     } catch (err) {
@@ -129,11 +150,63 @@ export default function ProductDischargeClient({
     }
   };
 
+  const openCreate = () => {
+    setCorrectionTarget(null);
+    setTankId("");
+    setSupplierName("");
+    setInvoiceNumber("");
+    setInvoiceMeasurement("");
+    setProductDischargedLitres("");
+    setTopUpLitres("0");
+    setBeforeTankLitres("");
+    setAfterTankLitres("");
+    setVehicleRegistrationNumber("");
+    setDriverName("");
+    setStationSupervisorName("");
+    setCouplingHeightCm("");
+    setTbar("");
+    setCalibrationCertificate("");
+    setSealNumbers("");
+    setSealNumbersContinued("");
+    setCompartmentNumber("");
+    setStationMeasurement("");
+    setRemarks("");
+    setCorrectionReason("");
+    setError(null);
+    setIsModalOpen(true);
+  };
+
+  const openCorrection = (discharge: DischargeSummary) => {
+    setCorrectionTarget(discharge);
+    setTankId(discharge.tankId);
+    setSupplierName(discharge.supplierName);
+    setInvoiceNumber(discharge.invoiceNumber);
+    setInvoiceMeasurement(discharge.invoiceMeasurement.toString());
+    setProductDischargedLitres(discharge.productDischargedLitres.toString());
+    setTopUpLitres(discharge.topUpLitres.toString());
+    setBeforeTankLitres(discharge.beforeTankLitres.toString());
+    setAfterTankLitres(discharge.afterTankLitres.toString());
+    setVehicleRegistrationNumber(discharge.vehicleRegistrationNumber ?? "");
+    setDriverName(discharge.driverName ?? "");
+    setStationSupervisorName(discharge.stationSupervisorName ?? "");
+    setCouplingHeightCm(discharge.couplingHeightCm?.toString() ?? "");
+    setTbar(discharge.tbar?.toString() ?? "");
+    setCalibrationCertificate(discharge.calibrationCertificate ?? "");
+    setSealNumbers(discharge.sealNumbers ?? "");
+    setSealNumbersContinued(discharge.sealNumbersContinued ?? "");
+    setCompartmentNumber(discharge.compartmentNumber ?? "");
+    setStationMeasurement(discharge.stationMeasurement?.toString() ?? "");
+    setRemarks(discharge.remarks ?? "");
+    setCorrectionReason("");
+    setError(null);
+    setIsModalOpen(true);
+  };
+
   return (
     <div className="mt-6 space-y-6">
       {canEdit && (
         <div style={{ marginBottom: "20px" }}>
-          <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+          <button className="btn btn-primary" onClick={openCreate}>
             <Plus size={13} />
             Add Discharge Record
           </button>
@@ -153,12 +226,13 @@ export default function ProductDischargeClient({
               <th className="px-4 py-3 text-right font-medium text-slate-600">Top-up (L)</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Expected (L)</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Variance (L)</th>
+              <th className="px-4 py-3 text-right font-medium text-slate-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {discharges.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
                   No discharges recorded for this session.
                 </td>
               </tr>
@@ -177,6 +251,17 @@ export default function ProductDischargeClient({
                   }`}>
                     {d.dischargeVarianceLitres > 0 ? "+" : ""}{d.dischargeVarianceLitres.toFixed(2)}
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ width: 34, height: 34, padding: 0 }}
+                      aria-label="Correct product discharge"
+                      onClick={() => openCorrection(d)}
+                    >
+                      <Edit size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
@@ -187,14 +272,20 @@ export default function ProductDischargeClient({
       {/* Modal */}
       <Modal 
         open={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        title="Record Product Discharge" 
+        onClose={() => {
+          setIsModalOpen(false);
+          setCorrectionTarget(null);
+        }} 
+        title={correctionTarget ? "Correct Product Discharge" : "Record Product Discharge"} 
         size="lg"
         footer={
           <>
             <button 
               type="button" 
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => {
+                setIsModalOpen(false);
+                setCorrectionTarget(null);
+              }}
               className="btn btn-outline"
               disabled={loading}
             >
@@ -206,7 +297,7 @@ export default function ProductDischargeClient({
               disabled={loading}
               className="btn btn-primary disabled:opacity-50"
             >
-              {loading ? "Saving..." : "Save Record"}
+              {loading ? "Saving..." : correctionTarget ? "Save Correction" : "Save Record"}
             </button>
           </>
         }
@@ -226,6 +317,7 @@ export default function ProductDischargeClient({
                   value={tankId}
                   onChange={(e) => setTankId(e.target.value)}
                   className="w-full px-3 py-2 border rounded-md"
+                  disabled={Boolean(correctionTarget)}
                 >
                   <option value="">Select Tank...</option>
                   {tanks.map((t) => (
@@ -325,6 +417,19 @@ export default function ProductDischargeClient({
             <label className="text-sm font-medium text-slate-700">Remarks</label>
             <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} className="w-full px-3 py-2 border rounded-md" rows={2} />
           </div>
+          {correctionTarget && (
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Correction Reason *</label>
+              <textarea
+                required
+                value={correctionReason}
+                onChange={(e) => setCorrectionReason(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+                rows={3}
+                placeholder="Explain what was wrong and what you corrected."
+              />
+            </div>
+          )}
         </form>
       </Modal>
     </div>

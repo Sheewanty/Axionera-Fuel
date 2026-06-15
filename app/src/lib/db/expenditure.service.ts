@@ -1,6 +1,7 @@
 import type { Expenditure } from "@prisma/client";
 import type { Db } from "./types";
 import type { CreateExpenditureInput, UpdateExpenditureInput } from "../schemas/expenditure.schema";
+import { appendCorrectionNote } from "../corrections";
 
 type TenantScopedInput = {
   tenantId: string;
@@ -104,7 +105,7 @@ export async function updateExpenditure(
       paidBy: input.paidBy,
       approvedBy: input.approvedBy,
       receiptAttached: input.receiptAttached,
-      description: input.description,
+      description: appendCorrectionNote(input.description ?? existing.description, input.correctionReason),
       updatedBy: input.updatedBy,
     },
   });

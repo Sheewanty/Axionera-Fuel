@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { correctionReasonSchema } from "../corrections";
 
 const basePumpReadingSchema = z.object({
   stationId: z.string().min(1, "Station is required"),
@@ -25,5 +26,12 @@ export const ClosePumpReadingSchema = basePumpReadingSchema.extend({
   creditorsAmount: z.coerce.number().finite("Creditors amount must be a valid number").min(0, "Creditors amount cannot be negative").default(0),
 });
 
+export const CorrectPumpReadingSchema = ClosePumpReadingSchema.extend({
+  id: z.string().min(1, "Pump reading ID is required"),
+  openingLitre: z.coerce.number().finite("Opening meter must be a valid number").min(0, "Opening meter cannot be negative"),
+  correctionReason: correctionReasonSchema,
+});
+
 export type OpenPumpReadingInput = z.infer<typeof OpenPumpReadingSchema>;
 export type ClosePumpReadingInput = z.infer<typeof ClosePumpReadingSchema>;
+export type CorrectPumpReadingInput = z.infer<typeof CorrectPumpReadingSchema>;

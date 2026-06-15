@@ -1,5 +1,6 @@
 import { type Db } from "./types";
 import { calcExpectedTankAfterDischarge, calcDischargeVariance } from "../calculations";
+import { appendCorrectionNote } from "../corrections";
 
 export type CreateProductDischargeInput = {
   tenantId: string;
@@ -121,6 +122,7 @@ export type UpdateProductDischargeInput = {
   driverName?: string;
   dealerName?: string;
   remarks?: string;
+  correctionReason: string;
   updatedBy: string;
 };
 
@@ -189,7 +191,7 @@ export async function updateProductDischarge(db: Db, input: UpdateProductDischar
       dischargeVarianceLitres,
       driverName: input.driverName,
       dealerName: input.dealerName,
-      remarks: input.remarks,
+      remarks: appendCorrectionNote(input.remarks ?? existing.remarks, input.correctionReason),
       updatedBy: input.updatedBy,
     },
   });

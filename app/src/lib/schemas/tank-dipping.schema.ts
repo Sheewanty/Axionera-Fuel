@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { correctionReasonSchema } from "../corrections";
 
 export const CreateTankDippingSchema = z.object({
   stationId: z.string().min(1, "Station is required"),
@@ -17,4 +18,10 @@ export const CreateTankDippingSchema = z.object({
   remarks: z.string().optional(),
 });
 
+export const CorrectTankDippingSchema = CreateTankDippingSchema.extend({
+  id: z.string().min(1, "Tank dipping ID is required"),
+  correctionReason: correctionReasonSchema,
+});
+
 export type CreateTankDippingInput = z.infer<typeof CreateTankDippingSchema>;
+export type CorrectTankDippingInput = z.infer<typeof CorrectTankDippingSchema>;

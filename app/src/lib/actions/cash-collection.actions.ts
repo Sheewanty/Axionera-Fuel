@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { withMutation } from "../mutation";
-import { cashCollectionSchema, CashCollectionInput } from "../schemas/cash-collection.schema";
-import { createCashCollection } from "../db/cash-collection.service";
+import { cashCollectionSchema, CashCollectionInput, CorrectCashCollectionInput, correctCashCollectionSchema } from "../schemas/cash-collection.schema";
+import { correctCashCollection, createCashCollection } from "../db/cash-collection.service";
 import { AuthSession } from "../session";
 import { Db } from "../db/types";
+import { CORRECTION_ROLES } from "../corrections";
 
 export type ActionResponse = {
   success: boolean;
@@ -50,6 +51,45 @@ export const submitCashCollection = async (formData: FormData): Promise<ActionRe
     const res = await mutation(parsed.data);
     if (res.success) {
       revalidatePath("/forecourt/cash-entries");
+    }
+    return res;
+  } catch (error) {
+    return errorResponse(error);
+  }
+};
+
+export const correctCashCollectionAction = async (formData: FormData): Promise<ActionResponse> => {
+  const rawData = Object.fromEntries(formData.entries());
+
+  const parsed = correctCashCollectionSchema.safeParse(rawData);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: "Validation failed",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const mutation = withMutation(
+    {
+      entityType: "CashCollection",
+      action: "UPDATE",
+      getStationId: (data) => data.stationId,
+      getEntityId: (result) => result?.id ?? "unknown",
+      getAfter: () => ({ correctionReason: parsed.data.correctionReason }),
+      roles: CORRECTION_ROLES,
+    },
+    async (session: AuthSession, tx: Db, data: CorrectCashCollectionInput): Promise<ActionResponse> => {
+      const collection = await correctCashCollection(session.user.tenantId, session.user.id, data, tx);
+      return { success: true, id: collection.id };
+    }
+  );
+
+  try {
+    const res = await mutation(parsed.data);
+    if (res.success) {
+      revalidatePath("/forecourt/cash-entries");
+      revalidatePath("/daily-close");
     }
     return res;
   } catch (error) {

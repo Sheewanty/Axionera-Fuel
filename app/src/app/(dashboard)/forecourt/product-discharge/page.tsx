@@ -53,14 +53,30 @@ export default async function ProductDischargePage({
 
   const discharges = dischargesDb.map((d) => ({
     id: d.id,
+    tankId: d.tankId,
+    productId: d.productId,
     tank: d.tank.name,
     product: d.product.name,
     supplierName: d.supplierName,
     invoiceNumber: d.invoiceNumber,
+    invoiceMeasurement: Number(d.invoiceMeasurement),
+    stationMeasurement: d.stationMeasurement ? Number(d.stationMeasurement) : null,
     productDischargedLitres: Number(d.productDischargedLitres),
+    beforeTankLitres: Number(d.beforeTankLitres),
+    afterTankLitres: Number(d.afterTankLitres),
     dischargeVarianceLitres: Number(d.dischargeVarianceLitres),
     topUpLitres: Number(d.topUpLitres),
     expectedTankAfterDischarge: Number(d.expectedTankAfterDischarge),
+    vehicleRegistrationNumber: d.vehicleRegistrationNumber,
+    driverName: d.driverName,
+    stationSupervisorName: d.stationSupervisorName,
+    couplingHeightCm: d.couplingHeightCm ? Number(d.couplingHeightCm) : null,
+    tbar: d.tbar ? Number(d.tbar) : null,
+    calibrationCertificate: d.calibrationCertificate,
+    sealNumbers: d.sealNumbers,
+    sealNumbersContinued: d.sealNumbersContinued,
+    compartmentNumber: d.compartmentNumber,
+    remarks: d.remarks,
   }));
 
   const tanksDb = await prisma.tank.findMany({

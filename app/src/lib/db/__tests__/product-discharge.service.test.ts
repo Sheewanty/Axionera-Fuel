@@ -147,6 +147,7 @@ describe("Product Discharge Service", () => {
       ...baseInput,
       id: "discharge_1",
       updatedBy: "user_2",
+      correctionReason: "Corrected typo in discharge litres",
     };
 
     it("updates discharge and recalculates variance", async () => {

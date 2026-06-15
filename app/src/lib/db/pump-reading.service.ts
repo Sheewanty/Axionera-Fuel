@@ -1,6 +1,7 @@
 import { Db } from "./types";
-import { ClosePumpReadingInput, OpenPumpReadingInput } from "../schemas/pump-reading.schema";
+import { ClosePumpReadingInput, CorrectPumpReadingInput, OpenPumpReadingInput } from "../schemas/pump-reading.schema";
 import { calcLitresSold, calcExpectedAmount, calcNozzleVariance } from "../calculations";
+import { appendCorrectionNote } from "../corrections";
 
 async function validateSessionAndNozzle(
   tenantId: string,
@@ -150,6 +151,64 @@ export async function recordClosingPumpReading(
       variance,
       isClosingRecorded: true,
       remarks: input.remarks,
+      updatedBy: userId,
+    },
+  });
+}
+
+export async function correctPumpReading(
+  tenantId: string,
+  userId: string,
+  input: CorrectPumpReadingInput,
+  db: Db
+) {
+  const { pricePerLitre } = await validateSessionAndNozzle(tenantId, input, db);
+
+  const existingReading = await db.pumpReading.findUnique({
+    where: { id: input.id },
+  });
+  if (
+    !existingReading ||
+    existingReading.tenantId !== tenantId ||
+    existingReading.stationId !== input.stationId ||
+    existingReading.dailySessionId !== input.dailySessionId ||
+    existingReading.nozzleId !== input.nozzleId
+  ) {
+    throw new Error("Pump reading not found or mismatch");
+  }
+
+  const openingLitre = input.openingLitre;
+  if (input.currentLitre < openingLitre) {
+    throw new Error(`Closing meter reading (${input.currentLitre}) cannot be less than opening reading (${openingLitre})`);
+  }
+
+  const litresSold = calcLitresSold(input.currentLitre, openingLitre);
+  const amountExpected = calcExpectedAmount(litresSold, pricePerLitre);
+  const variance = calcNozzleVariance(
+    input.cashReceived,
+    input.gocardAmount,
+    input.couponAmount,
+    input.ghqrAmount,
+    input.creditorsAmount,
+    amountExpected
+  );
+
+  return db.pumpReading.update({
+    where: { id: existingReading.id },
+    data: {
+      currentLitre: input.currentLitre,
+      previousLitre: openingLitre,
+      litresSold,
+      pricePerLitre,
+      amountExpected,
+      cashReceived: input.cashReceived,
+      gocardAmount: input.gocardAmount,
+      couponAmount: input.couponAmount,
+      ghqrAmount: input.ghqrAmount,
+      creditorsAmount: input.creditorsAmount,
+      variance,
+      isClosingRecorded: true,
+      remarks: appendCorrectionNote(input.remarks ?? existingReading.remarks, input.correctionReason),
       updatedBy: userId,
     },
   });

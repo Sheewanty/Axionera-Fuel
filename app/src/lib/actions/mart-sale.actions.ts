@@ -11,6 +11,7 @@ import {
   type CreateMartSaleInput,
   type UpdateMartSaleInput,
 } from "../schemas/mart-sale.schema";
+import { CORRECTION_ROLES } from "../corrections";
 
 type ActionResponse = {
   success: boolean;
@@ -73,7 +74,8 @@ export async function updateMartSaleAction(input: UpdateMartSaleInput): Promise<
       action: "UPDATE",
       getStationId: () => parsed.data.stationId,
       getEntityId: () => parsed.data.id,
-      roles: [...MART_ENTRY_ROLES],
+      getAfter: () => ({ correctionReason: parsed.data.correctionReason }),
+      roles: CORRECTION_ROLES,
     },
     async (session: AuthSession, tx: Db): Promise<{ id: string }> => {
       const martSale = await updateMartSale(tx, {

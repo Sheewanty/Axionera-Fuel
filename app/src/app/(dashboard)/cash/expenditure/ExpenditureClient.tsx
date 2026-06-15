@@ -56,6 +56,7 @@ type FormState = {
   approvedBy: string;
   receiptAttached: boolean;
   description: string;
+  correctionReason: string;
 };
 
 const blankForm: FormState = {
@@ -68,6 +69,7 @@ const blankForm: FormState = {
   approvedBy: "",
   receiptAttached: false,
   description: "",
+  correctionReason: "",
 };
 
 function errorMessage(error: unknown): string {
@@ -112,6 +114,7 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
       approvedBy: expense.approvedBy ?? "",
       receiptAttached: expense.receiptAttached,
       description: expense.description ?? "",
+      correctionReason: "",
     });
     setError(null);
     setIsModalOpen(true);
@@ -145,7 +148,7 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
 
     try {
       const response = form.id
-        ? await updateExpenditureAction({ ...payload, id: form.id })
+        ? await updateExpenditureAction({ ...payload, id: form.id, correctionReason: form.correctionReason })
         : await createExpenditureAction(payload);
 
       if (!response.success) {
@@ -424,6 +427,20 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
               className="form-textarea"
             />
           </label>
+
+          {form.id && (
+            <label className="form-group" style={{ display: "block" }}>
+              <span className="form-label">Correction Reason *</span>
+              <textarea
+                required
+                rows={3}
+                value={form.correctionReason}
+                onChange={(event) => setForm((current) => ({ ...current, correctionReason: event.target.value }))}
+                className="form-textarea"
+                placeholder="Explain what was wrong and what you corrected."
+              />
+            </label>
+          )}
         </form>
       </Modal>
 

@@ -1,7 +1,10 @@
 import { CashCollection, Prisma } from "@prisma/client";
 import { Db } from "./types";
-import { CashCollectionInput } from "../schemas/cash-collection.schema";
+import { CashCollectionInput, CorrectCashCollectionInput } from "../schemas/cash-collection.schema";
 import { calcPhysicalCashToBank, calcCashCollectionVariance } from "../calculations";
+import { appendCorrectionNote } from "../corrections";
+
+const LOCKED_SESSION_STATUSES = new Set(["READY_FOR_REVIEW", "APPROVED"]);
 
 export async function createCashCollection(
   tenantId: string,
@@ -16,8 +19,8 @@ export async function createCashCollection(
   if (!session || session.tenantId !== tenantId || session.stationId !== input.stationId) {
     throw new Error("Invalid session or tenant mismatch");
   }
-  if (session.status === "APPROVED") {
-    throw new Error("Cannot modify an approved session");
+  if (LOCKED_SESSION_STATUSES.has(session.status)) {
+    throw new Error(`Cannot modify cash collection for a session that is ${session.status}`);
   }
 
   // Calculate total cash received from pump readings for this session
@@ -73,6 +76,78 @@ export async function createCashCollection(
   };
 
   return db.cashCollection.create({ data });
+}
+
+export async function correctCashCollection(
+  tenantId: string,
+  actorUserId: string,
+  input: CorrectCashCollectionInput,
+  db: Db
+): Promise<CashCollection> {
+  const existing = await db.cashCollection.findUnique({
+    where: { id: input.id },
+  });
+  if (
+    !existing ||
+    existing.tenantId !== tenantId ||
+    existing.stationId !== input.stationId ||
+    existing.dailySessionId !== input.dailySessionId
+  ) {
+    throw new Error("Cash collection not found or mismatch");
+  }
+
+  const session = await db.dailySession.findUnique({
+    where: { id: input.dailySessionId },
+  });
+  if (!session || session.tenantId !== tenantId || session.stationId !== input.stationId) {
+    throw new Error("Invalid session or tenant mismatch");
+  }
+  if (LOCKED_SESSION_STATUSES.has(session.status)) {
+    throw new Error(`Cannot modify cash collection for a session that is ${session.status}`);
+  }
+
+  const pumpReadings = await db.pumpReading.findMany({
+    where: { tenantId, dailySessionId: input.dailySessionId },
+    select: { cashReceived: true },
+  });
+  const totalCashReceived = pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0);
+
+  const expenditures = await db.expenditure.findMany({
+    where: { tenantId, dailySessionId: input.dailySessionId },
+    select: { amount: true, paymentToBank: true },
+  });
+  const totalNetExpenditure = expenditures.reduce((sum, exp) => {
+    return sum + (Number(exp.amount) - Number(exp.paymentToBank));
+  }, 0);
+
+  const otherCollections = await db.cashCollection.findMany({
+    where: {
+      tenantId,
+      dailySessionId: input.dailySessionId,
+      id: { not: input.id },
+    },
+    select: { amountToBank: true },
+  });
+  const totalBankedExcludingThis = otherCollections.reduce((sum, c) => sum + Number(c.amountToBank), 0);
+
+  const baseExpectedCash = calcPhysicalCashToBank(totalCashReceived, totalNetExpenditure);
+  const expectedCashRemaining = baseExpectedCash - totalBankedExcludingThis;
+  const variance = calcCashCollectionVariance(input.amountToBank, expectedCashRemaining);
+
+  return db.cashCollection.update({
+    where: { id: input.id },
+    data: {
+      amountToBank: input.amountToBank,
+      bankCollectionDate: input.bankCollectionDate ? new Date(input.bankCollectionDate) : null,
+      bankCollectionReference: input.bankCollectionReference || null,
+      expectedCash: expectedCashRemaining,
+      variance,
+      bankSignatureName: input.bankSignatureName || null,
+      supervisorSignatureName: input.supervisorSignatureName || null,
+      remarks: appendCorrectionNote(input.remarks || existing.remarks, input.correctionReason),
+      updatedBy: actorUserId,
+    },
+  });
 }
 
 export async function listCashCollections(

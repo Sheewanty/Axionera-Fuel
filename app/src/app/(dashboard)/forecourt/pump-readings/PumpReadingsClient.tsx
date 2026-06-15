@@ -2,12 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle, Plus } from "lucide-react";
+import { CheckCircle, Edit, Plus } from "lucide-react";
 import DataTable from "@/components/ui/DataTable";
 import VarianceBadge from "@/components/ui/VarianceBadge";
 import Modal from "@/components/ui/Modal";
 import { formatCurrency, formatLitres } from "@/lib/calculations";
-import { submitClosingPumpReading, submitOpeningPumpReading } from "@/lib/actions/pump-reading.actions";
+import { correctPumpReadingAction, submitClosingPumpReading, submitOpeningPumpReading } from "@/lib/actions/pump-reading.actions";
 
 type NozzleInfo = {
   id: string;
@@ -130,6 +130,9 @@ export default function PumpReadingsClient({
   const [selectedOpeningNozzleId, setSelectedOpeningNozzleId] = useState(openingNozzles[0]?.id || "");
   const [openingMeter, setOpeningMeter] = useState("");
   const [selectedClosingReadingId, setSelectedClosingReadingId] = useState(closingReadings[0]?.id || "");
+  const [isCorrectionMode, setIsCorrectionMode] = useState(false);
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [correctionOpeningMeter, setCorrectionOpeningMeter] = useState("");
   const [closingMeter, setClosingMeter] = useState("");
   const [cashReceived, setCashReceived] = useState("");
   const [gocardAmount, setGocardAmount] = useState("");
@@ -138,12 +141,16 @@ export default function PumpReadingsClient({
   const [creditorsAmount, setCreditorsAmount] = useState("");
 
   const selectedOpeningNozzle = openingNozzles.find((nozzle) => nozzle.id === selectedOpeningNozzleId) ?? openingNozzles[0];
+  const selectableClosingReadings = isCorrectionMode ? readings : closingReadings;
   const selectedClosingReading =
-    closingReadings.find((reading) => reading.id === selectedClosingReadingId) ?? closingReadings[0];
+    selectableClosingReadings.find((reading) => reading.id === selectedClosingReadingId) ?? selectableClosingReadings[0];
 
   const parsedClosing = parseFloat(closingMeter) || 0;
+  const activeOpeningMeter = isCorrectionMode
+    ? parseFloat(correctionOpeningMeter) || 0
+    : selectedClosingReading?.openingMeter ?? 0;
   const closingLitresSold = selectedClosingReading
-    ? parsedClosing - selectedClosingReading.openingMeter
+    ? parsedClosing - activeOpeningMeter
     : 0;
   const expectedAmount = selectedClosingReading && closingLitresSold > 0
     ? closingLitresSold * selectedClosingReading.pricePerLitre
@@ -178,13 +185,31 @@ export default function PumpReadingsClient({
   const openClosingModal = () => {
     resetFeedback();
     const firstReading = closingReadings[0];
+    setIsCorrectionMode(false);
     setSelectedClosingReadingId(firstReading?.id || "");
+    setCorrectionOpeningMeter("");
+    setCorrectionReason("");
     setClosingMeter(firstReading ? firstReading.openingMeter.toFixed(2) : "");
     setCashReceived("");
     setGocardAmount("");
     setCouponAmount("");
     setGhqrAmount("");
     setCreditorsAmount("");
+    setClosingOpen(true);
+  };
+
+  const openCorrectionModal = (reading: PumpReadingView) => {
+    resetFeedback();
+    setIsCorrectionMode(true);
+    setSelectedClosingReadingId(reading.id);
+    setCorrectionOpeningMeter(reading.openingMeter.toFixed(2));
+    setClosingMeter(reading.closingMeter.toFixed(2));
+    setCashReceived(reading.cashReceived.toString());
+    setGocardAmount(reading.gocardAmount.toString());
+    setCouponAmount(reading.couponAmount.toString());
+    setGhqrAmount(reading.ghqrAmount.toString());
+    setCreditorsAmount(reading.creditorsAmount.toString());
+    setCorrectionReason("");
     setClosingOpen(true);
   };
 
@@ -214,6 +239,11 @@ export default function PumpReadingsClient({
 
     resetFeedback();
     const formData = buildBaseFormData(selectedClosingReading);
+    if (isCorrectionMode) {
+      formData.append("id", selectedClosingReading.id);
+      formData.append("openingLitre", correctionOpeningMeter);
+      formData.append("correctionReason", correctionReason);
+    }
     formData.append("currentLitre", closingMeter);
     formData.append("cashReceived", cashReceived || "0");
     formData.append("gocardAmount", gocardAmount || "0");
@@ -222,7 +252,9 @@ export default function PumpReadingsClient({
     formData.append("creditorsAmount", creditorsAmount || "0");
 
     startTransition(async () => {
-      const res = await submitClosingPumpReading(stationId, formData);
+      const res = isCorrectionMode
+        ? await correctPumpReadingAction(stationId, formData)
+        : await submitClosingPumpReading(stationId, formData);
       if (res.success) {
         setClosingOpen(false);
         router.refresh();
@@ -314,6 +346,22 @@ export default function PumpReadingsClient({
                 "-"
               ),
           },
+          {
+            key: "id",
+            header: "Actions",
+            align: "right",
+            render: (r) => (
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ width: 34, height: 34, padding: 0 }}
+                onClick={() => openCorrectionModal(r)}
+                aria-label="Correct pump reading"
+              >
+                <Edit size={14} />
+              </button>
+            ),
+          },
         ]}
         data={readings}
         getRowKey={(r) => r.id}
@@ -372,7 +420,7 @@ export default function PumpReadingsClient({
 
       <Modal
         open={closingOpen}
-        title="Record Closing Sales"
+        title={isCorrectionMode ? "Correct Closing Sales" : "Record Closing Sales"}
         onClose={() => setClosingOpen(false)}
         size="lg"
         footer={
@@ -381,7 +429,7 @@ export default function PumpReadingsClient({
               Cancel
             </button>
             <button className="btn btn-primary" onClick={handleClosingSubmit} disabled={isPending || !selectedClosingReading}>
-              {isPending ? "Saving..." : "Save Closing Sales"}
+              {isPending ? "Saving..." : isCorrectionMode ? "Save Correction" : "Save Closing Sales"}
             </button>
           </>
         }
@@ -395,13 +443,21 @@ export default function PumpReadingsClient({
                 className="form-select"
                 value={selectedClosingReadingId}
                 onChange={(event) => {
-                  const reading = closingReadings.find((item) => item.id === event.target.value);
+                  const reading = selectableClosingReadings.find((item) => item.id === event.target.value);
                   setSelectedClosingReadingId(event.target.value);
-                  setClosingMeter(reading ? reading.openingMeter.toFixed(2) : "");
+                  setCorrectionOpeningMeter(reading ? reading.openingMeter.toFixed(2) : "");
+                  setClosingMeter(reading ? (isCorrectionMode ? reading.closingMeter : reading.openingMeter).toFixed(2) : "");
+                  if (reading && isCorrectionMode) {
+                    setCashReceived(reading.cashReceived.toString());
+                    setGocardAmount(reading.gocardAmount.toString());
+                    setCouponAmount(reading.couponAmount.toString());
+                    setGhqrAmount(reading.ghqrAmount.toString());
+                    setCreditorsAmount(reading.creditorsAmount.toString());
+                  }
                 }}
                 disabled={isPending}
               >
-                {closingReadings.map((reading) => (
+                {selectableClosingReadings.map((reading) => (
                   <option key={reading.id} value={reading.id}>
                     {reading.pump} - {reading.nozzle} ({reading.product})
                   </option>
@@ -411,7 +467,14 @@ export default function PumpReadingsClient({
 
             <div className="form-group">
               <label className="form-label">Opening Meter (L)</label>
-              <input className="form-input computed" type="text" readOnly value={selectedClosingReading?.openingMeter.toFixed(2) ?? "0.00"} />
+              <input
+                className={isCorrectionMode ? "form-input" : "form-input computed"}
+                type={isCorrectionMode ? "number" : "text"}
+                step="0.01"
+                readOnly={!isCorrectionMode}
+                value={isCorrectionMode ? correctionOpeningMeter : selectedClosingReading?.openingMeter.toFixed(2) ?? "0.00"}
+                onChange={(event) => setCorrectionOpeningMeter(event.target.value)}
+              />
             </div>
             <div className="form-group">
               <label className="form-label">Closing Meter (L)</label>
@@ -467,6 +530,19 @@ export default function PumpReadingsClient({
               <label className="form-label">Creditors (Credit Sales)</label>
               <input className="form-input" type="number" step="0.01" value={creditorsAmount} onChange={(event) => setCreditorsAmount(event.target.value)} disabled={isPending} />
             </div>
+            {isCorrectionMode && (
+              <div className="form-group" style={{ gridColumn: "1/-1" }}>
+                <label className="form-label">Correction Reason *</label>
+                <textarea
+                  className="form-textarea"
+                  rows={3}
+                  value={correctionReason}
+                  onChange={(event) => setCorrectionReason(event.target.value)}
+                  disabled={isPending}
+                  placeholder="Example: Cash received was typed as 12000 instead of 1200."
+                />
+              </div>
+            )}
           </div>
         </form>
       </Modal>

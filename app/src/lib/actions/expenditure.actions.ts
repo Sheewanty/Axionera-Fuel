@@ -17,6 +17,7 @@ import {
   type UpdateExpenditureInput,
   type DeleteExpenditureInput,
 } from "../schemas/expenditure.schema";
+import { CORRECTION_ROLES } from "../corrections";
 
 type ActionResponse = {
   success: boolean;
@@ -77,7 +78,8 @@ export async function updateExpenditureAction(input: UpdateExpenditureInput): Pr
       action: "UPDATE",
       getStationId: () => parsed.data.stationId,
       getEntityId: () => parsed.data.id,
-      roles: ["SUPERVISOR", "STATION_MANAGER", "ADMIN", "OWNER"],
+      getAfter: () => ({ correctionReason: parsed.data.correctionReason }),
+      roles: CORRECTION_ROLES,
     },
     async (session: AuthSession, tx: Db): Promise<{ id: string }> => {
       const expenditure = await updateExpenditure(tx, {

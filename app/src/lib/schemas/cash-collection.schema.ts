@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { correctionReasonSchema } from "../corrections";
 
 export const cashCollectionSchema = z.object({
   stationId: z.string().min(1, "Station ID is required"),
@@ -14,4 +15,10 @@ export const cashCollectionSchema = z.object({
   remarks: z.string().optional(),
 });
 
+export const correctCashCollectionSchema = cashCollectionSchema.extend({
+  id: z.string().min(1, "Cash collection ID is required"),
+  correctionReason: correctionReasonSchema,
+});
+
 export type CashCollectionInput = z.infer<typeof cashCollectionSchema>;
+export type CorrectCashCollectionInput = z.infer<typeof correctCashCollectionSchema>;

@@ -48,6 +48,7 @@ type FormState = {
   returns: string;
   cashCount: string;
   remarks: string;
+  correctionReason: string;
 };
 
 function toField(value: number | undefined): string {
@@ -68,6 +69,7 @@ export default function MartSalesClient({ station, dailySession, martSale }: Pro
     returns: toField(martSale?.returns),
     cashCount: toField(martSale?.cashCount),
     remarks: martSale?.remarks ?? "",
+    correctionReason: "",
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,7 +110,7 @@ export default function MartSalesClient({ station, dailySession, martSale }: Pro
 
     try {
       const response = martSale
-        ? await updateMartSaleAction({ ...payload, id: martSale.id })
+        ? await updateMartSaleAction({ ...payload, id: martSale.id, correctionReason: form.correctionReason })
         : await createMartSaleAction(payload);
 
       if (!response.success) {
@@ -218,6 +220,21 @@ export default function MartSalesClient({ station, dailySession, martSale }: Pro
           <span className="form-label">Remarks</span>
           <textarea rows={3} value={form.remarks} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, remarks: e.target.value }))} className="form-textarea" />
         </label>
+
+        {martSale && canEdit && (
+          <label className="form-group" style={{ display: "block", marginTop: 16 }}>
+            <span className="form-label">Correction Reason *</span>
+            <textarea
+              rows={3}
+              required
+              value={form.correctionReason}
+              disabled={!canEdit}
+              onChange={(e) => setForm((current) => ({ ...current, correctionReason: e.target.value }))}
+              className="form-textarea"
+              placeholder="Explain what was wrong and what you corrected."
+            />
+          </label>
+        )}
 
         {canEdit && (
           <div style={{ display: "flex", justifyContent: "flex-end", borderTop: "1px solid var(--ax-border)", paddingTop: 16, marginTop: 18 }}>

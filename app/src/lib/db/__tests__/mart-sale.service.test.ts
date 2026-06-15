@@ -101,6 +101,7 @@ describe("mart sale service", () => {
       ...baseInput,
       id: "mart_1",
       updatedBy: "user_2",
+      correctionReason: "Corrected typo in mart sales summary",
     });
 
     expect(result.id).toBe("mart_1");

@@ -1,6 +1,9 @@
 import { Db } from "./types";
-import { CreateTankDippingInput } from "../schemas/tank-dipping.schema";
+import { CorrectTankDippingInput, CreateTankDippingInput } from "../schemas/tank-dipping.schema";
 import { calcTankVariance } from "../calculations";
+import { appendCorrectionNote } from "../corrections";
+
+const LOCKED_SESSION_STATUSES = new Set(["READY_FOR_REVIEW", "APPROVED"]);
 
 export async function createTankDipping(
   tenantId: string,
@@ -14,8 +17,8 @@ export async function createTankDipping(
   if (!session || session.tenantId !== tenantId || session.stationId !== input.stationId) {
     throw new Error("Invalid session or tenant mismatch");
   }
-  if (session.status === "APPROVED") {
-    throw new Error("Cannot modify an approved session");
+  if (LOCKED_SESSION_STATUSES.has(session.status)) {
+    throw new Error(`Cannot modify tank dipping for a session that is ${session.status}`);
   }
 
   const tank = await db.tank.findUnique({
@@ -80,4 +83,71 @@ export async function createTankDipping(
   });
 
   return dipping;
+}
+
+export async function correctTankDipping(
+  tenantId: string,
+  userId: string,
+  input: CorrectTankDippingInput,
+  db: Db
+) {
+  const existing = await db.tankDipping.findUnique({
+    where: { id: input.id },
+  });
+  if (
+    !existing ||
+    existing.tenantId !== tenantId ||
+    existing.stationId !== input.stationId ||
+    existing.dailySessionId !== input.dailySessionId ||
+    existing.tankId !== input.tankId
+  ) {
+    throw new Error("Tank dipping not found or mismatch");
+  }
+
+  const session = await db.dailySession.findUnique({
+    where: { id: input.dailySessionId },
+  });
+  if (!session || session.tenantId !== tenantId || session.stationId !== input.stationId) {
+    throw new Error("Invalid session or tenant mismatch");
+  }
+  if (LOCKED_SESSION_STATUSES.has(session.status)) {
+    throw new Error(`Cannot modify tank dipping for a session that is ${session.status}`);
+  }
+
+  const tank = await db.tank.findUnique({
+    where: { id: input.tankId },
+  });
+  if (!tank || tank.tenantId !== tenantId || tank.stationId !== input.stationId || tank.productId !== input.productId) {
+    throw new Error("Invalid or mismatched tank");
+  }
+
+  const openingStockLitres = Number(existing.openingStockLitres);
+
+  const pumpReadings = await db.pumpReading.findMany({
+    where: { dailySessionId: input.dailySessionId, productId: input.productId, tenantId },
+    select: { litresSold: true },
+  });
+  const meterSoldLitres = pumpReadings.reduce((sum, r) => sum + Number(r.litresSold), 0);
+
+  const varianceLitres = calcTankVariance(
+    openingStockLitres,
+    input.receiptsLitres,
+    meterSoldLitres,
+    input.closingStockLitres
+  );
+
+  return db.tankDipping.update({
+    where: { id: input.id },
+    data: {
+      openingStockLitres,
+      receiptsLitres: input.receiptsLitres,
+      meterSoldLitres,
+      closingStockLitres: input.closingStockLitres,
+      closingDipCm: input.closingDipCm,
+      varianceLitres,
+      waterTestStatus: input.waterTestStatus,
+      remarks: appendCorrectionNote(input.remarks ?? existing.remarks, input.correctionReason),
+      updatedBy: userId,
+    },
+  });
 }

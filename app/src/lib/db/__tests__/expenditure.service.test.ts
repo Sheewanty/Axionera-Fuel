@@ -132,6 +132,7 @@ describe("expenditure service", () => {
       ...baseInput,
       id: "expense_1",
       updatedBy: "user_2",
+      correctionReason: "Corrected typo in expenditure amount",
     };
 
     it("updates without changing daily session linkage", async () => {

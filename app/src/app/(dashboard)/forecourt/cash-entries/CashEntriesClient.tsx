@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Edit, Plus } from "lucide-react";
 import { Station } from "@prisma/client";
 import Modal from "@/components/ui/Modal";
-import { submitCashCollection } from "@/lib/actions/cash-collection.actions";
+import { correctCashCollectionAction, submitCashCollection } from "@/lib/actions/cash-collection.actions";
 import { formatCurrency } from "@/lib/calculations";
 import { formatDisplayDate } from "@/lib/business-date";
 
@@ -49,6 +49,7 @@ export default function CashEntriesClient({
 }: Props) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [correctionTarget, setCorrectionTarget] = useState<CashCollectionProps | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -61,13 +62,19 @@ export default function CashEntriesClient({
     formData.append("stationId", station.id);
     formData.append("dailySessionId", dailySession.id);
     formData.append("businessDate", dailySession.businessDate);
+    if (correctionTarget) {
+      formData.append("id", correctionTarget.id);
+    }
 
     try {
-      const res = await submitCashCollection(formData);
+      const res = correctionTarget
+        ? await correctCashCollectionAction(formData)
+        : await submitCashCollection(formData);
       if (!res.success) {
         setError(res.error + ": " + JSON.stringify(res.fieldErrors || {}));
       } else {
         setIsModalOpen(false);
+        setCorrectionTarget(null);
         router.refresh();
       }
     } catch (err: unknown) {
@@ -107,8 +114,9 @@ export default function CashEntriesClient({
                 <th className="p-3 border-b text-right">Expected</th>
                 <th className="p-3 border-b text-right">To Bank</th>
                 <th className="p-3 border-b text-right">Variance</th>
-                <th className="p-3 border-b">Bank Date/Ref</th>
-                <th className="p-3 border-b">Supervisor</th>
+                  <th className="p-3 border-b">Bank Date/Ref</th>
+                  <th className="p-3 border-b">Supervisor</th>
+                  <th className="p-3 border-b text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -131,6 +139,21 @@ export default function CashEntriesClient({
                   <td className="p-3 border-b text-sm text-gray-600">
                     {c.supervisorSignatureName || "-"}
                   </td>
+                  <td className="p-3 border-b text-right">
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ width: 34, height: 34, padding: 0 }}
+                      aria-label="Correct cash entry"
+                      onClick={() => {
+                        setCorrectionTarget(c);
+                        setError(null);
+                        setIsModalOpen(true);
+                      }}
+                    >
+                      <Edit size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -140,16 +163,22 @@ export default function CashEntriesClient({
 
       <Modal
         open={isModalOpen}
-        title="New Cash Entry"
+        title={correctionTarget ? "Correct Cash Entry" : "New Cash Entry"}
         onClose={() => {
-          if (!isSubmitting) setIsModalOpen(false);
+          if (!isSubmitting) {
+            setIsModalOpen(false);
+            setCorrectionTarget(null);
+          }
         }}
         size="lg"
         footer={
           <>
             <button
               type="button"
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => {
+                setIsModalOpen(false);
+                setCorrectionTarget(null);
+              }}
               className="btn btn-outline"
               disabled={isSubmitting}
             >
@@ -161,12 +190,12 @@ export default function CashEntriesClient({
               disabled={isSubmitting}
               className="btn btn-primary"
             >
-              {isSubmitting ? "Saving..." : "Save Cash Entry"}
+              {isSubmitting ? "Saving..." : correctionTarget ? "Save Correction" : "Save Cash Entry"}
             </button>
           </>
         }
       >
-        <form id="cash-entry-form" onSubmit={handleSubmit}>
+        <form id="cash-entry-form" onSubmit={handleSubmit} key={correctionTarget?.id ?? "new"}>
           {error && (
             <div style={{ color: "var(--ax-red)", marginBottom: 14, fontSize: 14 }}>
               {error}
@@ -205,28 +234,34 @@ export default function CashEntriesClient({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div className="form-group">
               <label className="form-label">Amount to Bank *</label>
-              <input type="number" name="amountToBank" step="0.01" min="0" required className="form-input" />
+              <input type="number" name="amountToBank" step="0.01" min="0" required className="form-input" defaultValue={correctionTarget?.amountToBank ?? ""} />
             </div>
             <div className="form-group">
               <label className="form-label">Bank Collection Date</label>
-              <input type="date" name="bankCollectionDate" className="form-input" />
+              <input type="date" name="bankCollectionDate" className="form-input" defaultValue={correctionTarget?.bankCollectionDate ?? ""} />
             </div>
             <div className="form-group">
               <label className="form-label">Collection Reference</label>
-              <input type="text" name="bankCollectionReference" className="form-input" />
+              <input type="text" name="bankCollectionReference" className="form-input" defaultValue={correctionTarget?.bankCollectionReference ?? ""} />
             </div>
             <div className="form-group">
               <label className="form-label">Bank Signature Name</label>
-              <input type="text" name="bankSignatureName" className="form-input" />
+              <input type="text" name="bankSignatureName" className="form-input" defaultValue={correctionTarget?.bankSignatureName ?? ""} />
             </div>
             <div className="form-group" style={{ gridColumn: "1/-1" }}>
               <label className="form-label">Supervisor Signature Name</label>
-              <input type="text" name="supervisorSignatureName" className="form-input" />
+              <input type="text" name="supervisorSignatureName" className="form-input" defaultValue={correctionTarget?.supervisorSignatureName ?? ""} />
             </div>
             <div className="form-group" style={{ gridColumn: "1/-1" }}>
               <label className="form-label">Remarks</label>
-              <textarea name="remarks" rows={3} className="form-textarea" />
+              <textarea name="remarks" rows={3} className="form-textarea" defaultValue={correctionTarget?.remarks ?? ""} />
             </div>
+            {correctionTarget && (
+              <div className="form-group" style={{ gridColumn: "1/-1" }}>
+                <label className="form-label">Correction Reason *</label>
+                <textarea name="correctionReason" rows={3} required className="form-textarea" placeholder="Explain what was wrong and what you corrected." />
+              </div>
+            )}
           </div>
         </form>
       </Modal>

@@ -2,12 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Edit, Plus } from "lucide-react";
 import DataTable from "@/components/ui/DataTable";
 import VarianceBadge from "@/components/ui/VarianceBadge";
 import Modal from "@/components/ui/Modal";
 import { formatLitres, calcTankVariance } from "@/lib/calculations";
-import { submitTankDipping } from "@/lib/actions/tank-dipping.actions";
+import { correctTankDippingAction, submitTankDipping } from "@/lib/actions/tank-dipping.actions";
 
 type TankInfo = {
   id: string;
@@ -20,7 +20,9 @@ type TankInfo = {
 
 type TankDippingView = {
   id: string;
+  tankId: string;
   tank: string;
+  productId: string;
   product: string;
   openingStock: number;
   receipts: number;
@@ -29,6 +31,7 @@ type TankDippingView = {
   varianceLitres: number;
   waterTest: string;
   closingDipCm: number | null;
+  remarks: string | null;
 };
 
 export default function TankDippingClient({
@@ -46,6 +49,7 @@ export default function TankDippingClient({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [correctionTarget, setCorrectionTarget] = useState<TankDippingView | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +60,7 @@ export default function TankDippingClient({
   const [closingDipCm, setClosingDipCm] = useState("");
   const [waterTestStatus, setWaterTestStatus] = useState("CLEAR");
   const [remarks, setRemarks] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
 
   const selectedTank = tanks.find((t) => t.id === selectedTankId);
   
@@ -72,6 +77,10 @@ export default function TankDippingClient({
 
     setError(null);
     const formData = new FormData();
+    if (correctionTarget) {
+      formData.append("id", correctionTarget.id);
+      formData.append("correctionReason", correctionReason);
+    }
     formData.append("stationId", stationId);
     formData.append("dailySessionId", dailySessionId);
     formData.append("businessDate", businessDate);
@@ -86,14 +95,18 @@ export default function TankDippingClient({
     if (remarks) formData.append("remarks", remarks);
 
     startTransition(async () => {
-      const res = await submitTankDipping(stationId, formData);
+      const res = correctionTarget
+        ? await correctTankDippingAction(stationId, formData)
+        : await submitTankDipping(stationId, formData);
       if (res.success) {
         setOpen(false);
+        setCorrectionTarget(null);
         setReceiptsLitres("");
         setClosingStockLitres("");
         setClosingDipCm("");
         setWaterTestStatus("CLEAR");
         setRemarks("");
+        setCorrectionReason("");
         router.refresh();
       } else {
         setError(res.error || "Failed to save tank dipping");
@@ -101,10 +114,26 @@ export default function TankDippingClient({
     });
   };
 
+  const openCorrection = (dipping: TankDippingView) => {
+    setCorrectionTarget(dipping);
+    setSelectedTankId(dipping.tankId);
+    setReceiptsLitres(dipping.receipts.toString());
+    setClosingStockLitres(dipping.closingStock.toString());
+    setClosingDipCm(dipping.closingDipCm?.toString() ?? "");
+    setWaterTestStatus(dipping.waterTest);
+    setRemarks(dipping.remarks ?? "");
+    setCorrectionReason("");
+    setError(null);
+    setOpen(true);
+  };
+
   return (
     <>
       <div style={{ marginBottom: "20px" }}>
-        <button className="btn btn-primary" onClick={() => setOpen(true)}>
+        <button className="btn btn-primary" onClick={() => {
+          setCorrectionTarget(null);
+          setOpen(true);
+        }}>
           <Plus size={13} />
           Add Dipping Record
         </button>
@@ -136,6 +165,22 @@ export default function TankDippingClient({
               </span>
             ),
           },
+          {
+            key: "id",
+            header: "Actions",
+            align: "right",
+            render: (r) => (
+              <button
+                type="button"
+                className="btn btn-outline"
+                style={{ width: 34, height: 34, padding: 0 }}
+                aria-label="Correct tank dipping"
+                onClick={() => openCorrection(r)}
+              >
+                <Edit size={14} />
+              </button>
+            ),
+          },
         ]}
         data={dippings}
         getRowKey={(r) => r.id}
@@ -143,14 +188,20 @@ export default function TankDippingClient({
 
       <Modal
         open={open}
-        title="Add Tank Dipping"
-        onClose={() => setOpen(false)}
+        title={correctionTarget ? "Correct Tank Dipping" : "Add Tank Dipping"}
+        onClose={() => {
+          setOpen(false);
+          setCorrectionTarget(null);
+        }}
         size="md"
         footer={
           <>
-            <button className="btn btn-outline" onClick={() => setOpen(false)} disabled={isPending}>Cancel</button>
+            <button className="btn btn-outline" onClick={() => {
+              setOpen(false);
+              setCorrectionTarget(null);
+            }} disabled={isPending}>Cancel</button>
             <button className="btn btn-primary" onClick={handleSubmit} disabled={isPending}>
-              {isPending ? "Saving..." : "Save Record"}
+              {isPending ? "Saving..." : correctionTarget ? "Save Correction" : "Save Record"}
             </button>
           </>
         }
@@ -163,7 +214,7 @@ export default function TankDippingClient({
               className="form-select" 
               value={selectedTankId} 
               onChange={(e) => setSelectedTankId(e.target.value)}
-              disabled={isPending}
+              disabled={isPending || Boolean(correctionTarget)}
             >
               {tanks.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -238,6 +289,20 @@ export default function TankDippingClient({
               disabled={isPending}
             />
           </div>
+          {correctionTarget && (
+            <div className="form-group" style={{ gridColumn: "1/-1" }}>
+              <label className="form-label">Correction Reason *</label>
+              <textarea
+                className="form-textarea"
+                rows={3}
+                required
+                placeholder="Explain what was wrong and what you corrected."
+                value={correctionReason}
+                onChange={(e) => setCorrectionReason(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
+          )}
         </div>
       </Modal>
     </>

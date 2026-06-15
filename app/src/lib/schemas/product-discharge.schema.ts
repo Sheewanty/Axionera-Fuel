@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { correctionReasonSchema } from "../corrections";
 
 export const createProductDischargeSchema = z.object({
   stationId: z.string().min(1),
@@ -29,6 +30,7 @@ export const createProductDischargeSchema = z.object({
 
 export const updateProductDischargeSchema = createProductDischargeSchema.extend({
   id: z.string().min(1),
+  correctionReason: correctionReasonSchema,
 });
 
 export const deleteProductDischargeSchema = z.object({
