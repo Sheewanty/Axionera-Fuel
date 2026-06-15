@@ -143,9 +143,12 @@ export default function PumpReadingsClient({
 
   const parsedClosing = parseFloat(closingMeter) || 0;
   const closingLitresSold = selectedClosingReading
-    ? Math.max(0, parsedClosing - selectedClosingReading.openingMeter)
+    ? parsedClosing - selectedClosingReading.openingMeter
     : 0;
-  const expectedAmount = selectedClosingReading ? closingLitresSold * selectedClosingReading.pricePerLitre : 0;
+  const expectedAmount = selectedClosingReading && closingLitresSold > 0
+    ? closingLitresSold * selectedClosingReading.pricePerLitre
+    : 0;
+  const hasInvalidClosingMeter = Boolean(selectedClosingReading && closingMeter && closingLitresSold < 0);
 
   const resetFeedback = () => {
     setError(null);
@@ -420,6 +423,19 @@ export default function PumpReadingsClient({
                 onChange={(event) => setClosingMeter(event.target.value)}
                 disabled={isPending}
               />
+              {hasInvalidClosingMeter && (
+                <div
+                  style={{
+                    color: "var(--ax-red)",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    lineHeight: 1.35,
+                    marginTop: 6,
+                  }}
+                >
+                  Closing meter cannot be lower than the opening meter.
+                </div>
+              )}
             </div>
 
             <div className="form-group">
