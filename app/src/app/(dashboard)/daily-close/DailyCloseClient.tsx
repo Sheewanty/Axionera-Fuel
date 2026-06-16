@@ -55,6 +55,7 @@ export default function DailyCloseClient({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReopenModalOpen, setIsReopenModalOpen] = useState(false);
+  const [showCloseRequirements, setShowCloseRequirements] = useState(false);
 
   const canOpen = userRoles.some((r) =>
     ["SUPERVISOR", "STATION_MANAGER", "ADMIN", "OWNER"].includes(r)
@@ -65,15 +66,22 @@ export default function DailyCloseClient({
   const handleOpen = async () => {
     setIsSubmitting(true);
     setError(null);
+    setShowCloseRequirements(false);
     const res = await openTodaySessionAction(station.id);
     if (!res.success) setError(res.error || "Failed to open today's session");
     setIsSubmitting(false);
   };
 
   const handleClose = async () => {
-    if (!dailySession || !summary.canClose) return;
+    if (!dailySession) return;
+    if (!summary.canClose) {
+      setError(null);
+      setShowCloseRequirements(true);
+      return;
+    }
     setIsSubmitting(true);
     setError(null);
+    setShowCloseRequirements(false);
     const res = await closeSessionAction(station.id, dailySession.id);
     if (!res.success) setError(res.error || "Failed to close session");
     setIsSubmitting(false);
@@ -132,7 +140,7 @@ export default function DailyCloseClient({
             {dailySession && (dailySession.status === "OPEN" || dailySession.status === "REOPENED") && (
               <button
                 onClick={handleClose}
-                disabled={isSubmitting || !summary.canClose}
+                disabled={isSubmitting}
                 className="btn btn-outline disabled:opacity-50"
               >
                 <Clock size={16} className="mr-2 inline" />
@@ -177,12 +185,15 @@ export default function DailyCloseClient({
         </div>
       )}
 
-      {dailySession && !summary.canClose && (dailySession.status === "OPEN" || dailySession.status === "REOPENED") && (
+      {dailySession &&
+        showCloseRequirements &&
+        !summary.canClose &&
+        (dailySession.status === "OPEN" || dailySession.status === "REOPENED") && (
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded shadow mb-6 flex items-start">
           <AlertTriangle className="mr-3 mt-0.5 text-yellow-600" size={20} />
           <div>
-            <h4 className="font-semibold">Cannot Close Session</h4>
-            <p className="text-sm">The following required workflows have not been completed:</p>
+            <h4 className="font-semibold">Before Closing Day</h4>
+            <p className="text-sm">Complete these workflows before this session can be closed:</p>
             <ul className="list-disc ml-5 mt-1 text-sm">
               {summary.missingRequirements.map((req, i) => (
                 <li key={i}>{req}</li>
