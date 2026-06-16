@@ -330,6 +330,18 @@ export default function PumpReadingsClient({
             render: (r) => (r.isClosingRecorded && r.couponAmount ? formatCurrency(r.couponAmount) : "-"),
           },
           {
+            key: "ghqrAmount",
+            header: "GHQR",
+            align: "right",
+            render: (r) => (r.isClosingRecorded && r.ghqrAmount ? formatCurrency(r.ghqrAmount) : "-"),
+          },
+          {
+            key: "creditorsAmount",
+            header: "Creditors",
+            align: "right",
+            render: (r) => (r.isClosingRecorded && r.creditorsAmount ? formatCurrency(r.creditorsAmount) : "-"),
+          },
+          {
             key: "variance",
             header: "Variance",
             align: "right",

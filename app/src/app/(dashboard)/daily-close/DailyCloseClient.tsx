@@ -55,6 +55,7 @@ export default function DailyCloseClient({
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isReopenModalOpen, setIsReopenModalOpen] = useState(false);
+  const [isCloseConfirmOpen, setIsCloseConfirmOpen] = useState(false);
   const [showCloseRequirements, setShowCloseRequirements] = useState(false);
 
   const canOpen = userRoles.some((r) =>
@@ -79,11 +80,19 @@ export default function DailyCloseClient({
       setShowCloseRequirements(true);
       return;
     }
+    setError(null);
+    setShowCloseRequirements(false);
+    setIsCloseConfirmOpen(true);
+  };
+
+  const confirmClose = async () => {
+    if (!dailySession) return;
     setIsSubmitting(true);
     setError(null);
     setShowCloseRequirements(false);
     const res = await closeSessionAction(station.id, dailySession.id);
     if (!res.success) setError(res.error || "Failed to close session");
+    else setIsCloseConfirmOpen(false);
     setIsSubmitting(false);
   };
 
@@ -282,6 +291,77 @@ export default function DailyCloseClient({
           </ul>
         </div>
       </div>
+
+      <Modal
+        open={isCloseConfirmOpen}
+        title="Close Daily Session"
+        onClose={() => {
+          if (!isSubmitting) setIsCloseConfirmOpen(false);
+        }}
+        size="md"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setIsCloseConfirmOpen(false)}
+              className="btn btn-outline"
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={confirmClose}
+              disabled={isSubmitting}
+              className="btn btn-primary"
+            >
+              {isSubmitting ? "Closing..." : "Confirm Close Day"}
+            </button>
+          </>
+        }
+      >
+        <div
+          style={{
+            background: "color-mix(in srgb, var(--ax-amber) 10%, white)",
+            border: "1px solid color-mix(in srgb, var(--ax-amber) 35%, white)",
+            borderRadius: 8,
+            color: "var(--ax-blue)",
+            fontSize: 14,
+            lineHeight: 1.45,
+            marginBottom: 16,
+            padding: "10px 12px",
+          }}
+        >
+          Closing this daily session moves it to review. Operators will no longer be able to
+          add or correct entries unless an authorised user reopens the day.
+        </div>
+        <dl style={{ display: "grid", gap: 10, fontSize: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+            <dt style={{ color: "var(--ax-slate)" }}>Station</dt>
+            <dd style={{ fontWeight: 700, color: "var(--ax-blue)", textAlign: "right" }}>
+              {station.name}
+            </dd>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+            <dt style={{ color: "var(--ax-slate)" }}>Business date</dt>
+            <dd style={{ fontWeight: 700, color: "var(--ax-blue)", textAlign: "right" }}>
+              {dailySession?.businessDate}
+            </dd>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+            <dt style={{ color: "var(--ax-slate)" }}>Expected cash</dt>
+            <dd style={{ fontWeight: 700, color: "var(--ax-blue)", textAlign: "right" }}>
+              {formatCurrency(summary.expectedCash)}
+            </dd>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+            <dt style={{ color: "var(--ax-slate)" }}>Banked</dt>
+            <dd style={{ fontWeight: 700, color: "var(--ax-blue)", textAlign: "right" }}>
+              {formatCurrency(summary.totalBanked)}
+            </dd>
+          </div>
+        </dl>
+      </Modal>
 
       <Modal
         open={isReopenModalOpen}
