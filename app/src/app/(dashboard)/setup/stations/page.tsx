@@ -2,6 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireRole } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { formatDisplayDate } from "@/lib/business-date";
+import { StationSetupForm } from "../SetupForms";
 
 export default async function StationsPage() {
   const session = await getRequiredSession();
@@ -30,6 +31,8 @@ export default async function StationsPage() {
         title="Stations"
         subtitle={`${stations.length} station${stations.length !== 1 ? "s" : ""} configured`}
       />
+
+      {["OWNER", "ADMIN"].includes(session.user.role) && <StationSetupForm />}
 
       <div className="dash-panel">
         <div className="dash-panel-head">

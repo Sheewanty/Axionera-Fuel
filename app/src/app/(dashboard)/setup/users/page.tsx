@@ -2,6 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireRole } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { formatDisplayDate } from "@/lib/business-date";
+import { UserSetupForm } from "../SetupForms";
 
 export default async function UsersPage() {
   const session = await getRequiredSession();
@@ -29,6 +30,16 @@ export default async function UsersPage() {
         select: { id: true, name: true },
       })
     : [];
+
+  const assignableStations = await prisma.station.findMany({
+    where: {
+      tenantId: session.user.tenantId,
+      status: "ACTIVE",
+      ...(session.user.membershipStationId === "" ? {} : { id: session.user.membershipStationId }),
+    },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
 
   const stationNameMap = new Map(stations.map((s) => [s.id, s.name]));
 
@@ -63,6 +74,10 @@ export default async function UsersPage() {
         title="Users & Roles"
         subtitle={`${memberships.length} membership${memberships.length !== 1 ? "s" : ""} across ${new Set(memberships.map((m) => m.userId)).size} user${new Set(memberships.map((m) => m.userId)).size !== 1 ? "s" : ""}`}
       />
+
+      {["OWNER", "ADMIN"].includes(session.user.role) && (
+        <UserSetupForm stations={assignableStations} />
+      )}
 
       <div className="dash-panel">
         <div className="dash-panel-head">

@@ -2,6 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireRole } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { formatDisplayDate } from "@/lib/business-date";
+import { CompanySettingsForm } from "../SetupForms";
 
 export default async function CompanyPage() {
   const session = await getRequiredSession();
@@ -33,6 +34,15 @@ export default async function CompanyPage() {
         title="Company Settings"
         subtitle={tenant.name}
       />
+
+      {["OWNER", "ADMIN"].includes(session.user.role) && (
+        <CompanySettingsForm
+          company={{
+            name: tenant.name,
+            billingEmail: tenant.billingEmail ?? "",
+          }}
+        />
+      )}
 
       {/* KPI summary */}
       <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>

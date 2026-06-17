@@ -3,6 +3,7 @@ import { getRequiredSession, requireRole, requireStationScope } from "@/lib/sess
 import { prisma } from "@/lib/db/prisma";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
 import { formatDisplayDate } from "@/lib/business-date";
+import { ProductSetupForms } from "../SetupForms";
 
 export default async function ProductsPage({
   searchParams,
@@ -65,6 +66,13 @@ export default async function ProductsPage({
         title="Products & Prices"
         subtitle={station ? `${station.name} · ${products.length} product${products.length !== 1 ? "s" : ""}` : undefined}
       />
+
+      {["OWNER", "ADMIN"].includes(session.user.role) && (
+        <ProductSetupForms
+          stationId={stationId}
+          products={products.map((product) => ({ id: product.id, name: product.name }))}
+        />
+      )}
 
       <div className="dash-panel">
         <div className="dash-panel-head">

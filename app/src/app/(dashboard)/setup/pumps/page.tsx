@@ -2,6 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireRole, requireStationScope } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
+import { PumpNozzleSetupForms } from "../SetupForms";
 
 export default async function PumpsPage({
   searchParams,
@@ -47,6 +48,12 @@ export default async function PumpsPage({
 
   const totalNozzles = pumps.reduce((sum, p) => sum + p.nozzles.length, 0);
 
+  const products = await prisma.product.findMany({
+    where: { tenantId: session.user.tenantId, isActive: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+
   return (
     <>
       <PageTitle
@@ -54,6 +61,14 @@ export default async function PumpsPage({
         title="Pumps & Nozzles"
         subtitle={station ? `${station.name} · ${pumps.length} pump${pumps.length !== 1 ? "s" : ""}, ${totalNozzles} nozzle${totalNozzles !== 1 ? "s" : ""}` : undefined}
       />
+
+      {["OWNER", "ADMIN"].includes(session.user.role) && (
+        <PumpNozzleSetupForms
+          stationId={stationId}
+          products={products}
+          pumps={pumps.map((pump) => ({ id: pump.id, name: pump.name }))}
+        />
+      )}
 
       {pumps.length === 0 ? (
         <div className="dash-panel">

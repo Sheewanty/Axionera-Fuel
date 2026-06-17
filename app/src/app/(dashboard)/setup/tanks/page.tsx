@@ -3,6 +3,7 @@ import { getRequiredSession, requireRole, requireStationScope } from "@/lib/sess
 import { prisma } from "@/lib/db/prisma";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
 import { formatDisplayDate } from "@/lib/business-date";
+import { TankSetupForm } from "../SetupForms";
 
 export default async function TanksPage({
   searchParams,
@@ -43,6 +44,12 @@ export default async function TanksPage({
 
   const totalCapacity = tanks.reduce((sum, t) => sum + Number(t.capacityLitres), 0);
 
+  const products = await prisma.product.findMany({
+    where: { tenantId: session.user.tenantId, isActive: true },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+
   return (
     <>
       <PageTitle
@@ -50,6 +57,10 @@ export default async function TanksPage({
         title="Tanks"
         subtitle={station ? `${station.name} · ${tanks.length} tank${tanks.length !== 1 ? "s" : ""} · ${totalCapacity.toLocaleString()} L total capacity` : undefined}
       />
+
+      {["OWNER", "ADMIN"].includes(session.user.role) && (
+        <TankSetupForm stationId={stationId} products={products} />
+      )}
 
       <div className="dash-panel">
         <div className="dash-panel-head">
