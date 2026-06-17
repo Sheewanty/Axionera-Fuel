@@ -249,7 +249,7 @@ export default function ProductDischargeClient({
               <th className="px-4 py-3 text-left font-medium text-slate-600">Supplier</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Invoice #</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Discharged (L)</th>
-              <th className="px-4 py-3 text-right font-medium text-slate-600">Top-up (L)</th>
+              <th className="px-4 py-3 text-right font-medium text-slate-600">Adjustment / Top-up (L)</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Expected (L)</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Variance (L)</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Water Test</th>
@@ -468,8 +468,11 @@ export default function ProductDischargeClient({
                 <input required type="number" step="0.01" value={productDischargedLitres} onChange={(e) => setProductDischargedLitres(e.target.value)} className="w-full px-3 py-2 border rounded-md" />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">Top-up Litres *</label>
+                <label className="text-sm font-medium text-slate-700">Adjustment / Top-up Litres *</label>
                 <input required type="number" step="0.01" value={topUpLitres} onChange={(e) => setTopUpLitres(e.target.value)} className="w-full px-3 py-2 border rounded-md" />
+                <p className="text-xs text-slate-500">
+                  Use 0 unless this delivery includes a shortage correction or extra litres from a previous delivery.
+                </p>
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-700">Expected After Tank (computed)</label>
