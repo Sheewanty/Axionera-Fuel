@@ -6,7 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { withMutation } from "@/lib/mutation";
 import type { Db } from "@/lib/db/types";
-import { getRequiredSession, requireRole, type AuthSession } from "@/lib/session";
+import { getRequiredSession, requireSuperAdmin, type AuthSession } from "@/lib/session";
 import { writeAuditLog } from "@/lib/db/audit.service";
 
 type ActionResponse = {
@@ -174,6 +174,35 @@ async function assertProduct(tx: Db, tenantId: string, productId: string) {
   return product;
 }
 
+async function assertTenantCanAdd(tx: Db, tenantId: string, resource: "station" | "tank" | "pump") {
+  const tenant = await tx.tenant.findUnique({ where: { id: tenantId } });
+  if (!tenant) throw new Error("Company was not found");
+  if (tenant.subscriptionStatus === "SUSPENDED" || tenant.subscriptionStatus === "CANCELLED") {
+    throw new Error("This company is deactivated. Contact Axionera support.");
+  }
+
+  if (resource === "station") {
+    const count = await tx.station.count({ where: { tenantId } });
+    if (count >= tenant.maxStations) {
+      throw new Error(`Station limit reached for the ${tenant.subscriptionPackage} package (${tenant.maxStations}).`);
+    }
+  }
+
+  if (resource === "tank") {
+    const count = await tx.tank.count({ where: { tenantId } });
+    if (count >= tenant.maxTanks) {
+      throw new Error(`Tank limit reached for the ${tenant.subscriptionPackage} package (${tenant.maxTanks}).`);
+    }
+  }
+
+  if (resource === "pump") {
+    const count = await tx.pump.count({ where: { tenantId } });
+    if (count >= tenant.maxPumps) {
+      throw new Error(`Pump limit reached for the ${tenant.subscriptionPackage} package (${tenant.maxPumps}).`);
+    }
+  }
+}
+
 export async function updateCompanyAction(formData: FormData): Promise<ActionResponse> {
   const parsed = parseForm(companySchema, formData);
   if (!parsed.success) return validationError(parsed.error);
@@ -214,7 +243,7 @@ export async function createTenantAction(formData: FormData): Promise<ActionResp
 
   try {
     const session = await getRequiredSession();
-    requireRole(session, ["OWNER", "ADMIN"]);
+    requireSuperAdmin(session);
 
     const slug = slugify(data.slug || data.companyName);
     if (!slug) {
@@ -280,7 +309,7 @@ export async function createTenantAction(formData: FormData): Promise<ActionResp
 
       await writeAuditLog(
         {
-          tenantId: session.user.tenantId,
+          tenantId: "__platform__",
           stationId: null,
           actorUserId: session.user.id,
           entityType: "Tenant",
@@ -300,7 +329,7 @@ export async function createTenantAction(formData: FormData): Promise<ActionResp
       return { id: tenant.id };
     });
 
-    revalidatePath("/setup/company");
+    revalidatePath("/platform/tenants");
     return { success: true, data: result };
   } catch (error) {
     return errorResponse(error);
@@ -321,6 +350,7 @@ export async function saveStationAction(formData: FormData): Promise<ActionRespo
       roles: [...WRITE_ROLES],
     },
     async (session: AuthSession, tx: Db) => {
+      if (!data.id) await assertTenantCanAdd(tx, session.user.tenantId, "station");
       const station = data.id
         ? await tx.station.update({
             where: { id: data.id, tenantId: session.user.tenantId },
@@ -487,6 +517,7 @@ export async function saveTankAction(formData: FormData): Promise<ActionResponse
     async (session: AuthSession, tx: Db) => {
       await assertStation(tx, session.user.tenantId, data.stationId);
       await assertProduct(tx, session.user.tenantId, data.productId);
+      if (!data.id) await assertTenantCanAdd(tx, session.user.tenantId, "tank");
       const tank = data.id
         ? await tx.tank.update({
             where: { id: data.id, tenantId: session.user.tenantId, stationId: data.stationId },
@@ -535,6 +566,7 @@ export async function savePumpAction(formData: FormData): Promise<ActionResponse
     },
     async (session: AuthSession, tx: Db) => {
       await assertStation(tx, session.user.tenantId, data.stationId);
+      if (!data.id) await assertTenantCanAdd(tx, session.user.tenantId, "pump");
       const pump = data.id
         ? await tx.pump.update({
             where: { id: data.id, tenantId: session.user.tenantId, stationId: data.stationId },

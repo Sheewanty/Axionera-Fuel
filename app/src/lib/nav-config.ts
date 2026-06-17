@@ -1,4 +1,5 @@
 export type Role =
+  | "SUPER_ADMIN"
   | "OWNER"
   | "ADMIN"
   | "STATION_MANAGER"
@@ -54,6 +55,20 @@ export interface NavGroup {
 
 
 export const NAV_CONFIG: NavGroup[] = [
+  {
+    id: "platform-admin",
+    label: "Super Admin",
+    icon: "shield-halved",
+    items: [
+      {
+        label: "Companies",
+        href: "/platform/tenants",
+        icon: "building",
+        stationScoped: false,
+        access: { SUPER_ADMIN: "full" },
+      },
+    ],
+  },
   {
     id: "command-center",
     label: "Command Center",

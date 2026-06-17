@@ -18,20 +18,25 @@ export default async function DashboardLayout({
   let stations: { id: string; name: string }[] = [];
   let fallbackStationId: string | null = null;
   let tenantName = "FuelStation OS";
+  const isSuperAdmin = user.role === "SUPER_ADMIN";
 
   try {
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: user.tenantId },
-      select: { name: true },
-    });
-    tenantName = tenant?.name ?? tenantName;
+    if (isSuperAdmin) {
+      tenantName = "Axionera Global Limited";
+    } else {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+        select: { name: true },
+      });
+      tenantName = tenant?.name ?? tenantName;
 
-    stations = await getAccessibleStations(user.tenantId, user.membershipStationId);
-    if (user.activeStationId) {
-      const active = stations.find((s) => s.id === user.activeStationId);
-      if (active) fallbackStationId = active.id;
-    } else if (stations.length > 0) {
-      fallbackStationId = stations[0].id;
+      stations = await getAccessibleStations(user.tenantId, user.membershipStationId);
+      if (user.activeStationId) {
+        const active = stations.find((s) => s.id === user.activeStationId);
+        if (active) fallbackStationId = active.id;
+      } else if (stations.length > 0) {
+        fallbackStationId = stations[0].id;
+      }
     }
   } catch {
     // DB not connected in dev — fall back to empty
@@ -63,6 +68,7 @@ export default async function DashboardLayout({
           avatarInitials={avatarInitials}
           stations={stations}
           fallbackStationId={fallbackStationId}
+          showStationSwitcher={!isSuperAdmin}
           onSignOut={handleSignOut}
         />
         <main className="page-container custom-scroll">{children}</main>

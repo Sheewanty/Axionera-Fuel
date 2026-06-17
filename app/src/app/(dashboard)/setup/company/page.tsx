@@ -2,7 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireRole } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { formatDisplayDate } from "@/lib/business-date";
-import { CompanySettingsForm, TenantCreationForm } from "../SetupForms";
+import { CompanySettingsForm } from "../SetupForms";
 
 export default async function CompanyPage() {
   const session = await getRequiredSession();
@@ -36,15 +36,12 @@ export default async function CompanyPage() {
       />
 
       {["OWNER", "ADMIN"].includes(session.user.role) && (
-        <>
-          <TenantCreationForm />
-          <CompanySettingsForm
-            company={{
-              name: tenant.name,
-              billingEmail: tenant.billingEmail ?? "",
-            }}
-          />
-        </>
+        <CompanySettingsForm
+          company={{
+            name: tenant.name,
+            billingEmail: tenant.billingEmail ?? "",
+          }}
+        />
       )}
 
       {/* KPI summary */}
@@ -91,6 +88,16 @@ export default async function CompanyPage() {
                   <span className="status-badge" data-status={tenant.subscriptionStatus}>
                     {statusLabel[tenant.subscriptionStatus] ?? tenant.subscriptionStatus}
                   </span>
+                </td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: 600 }}>Subscription Package</td>
+                <td>{tenant.subscriptionPackage}</td>
+              </tr>
+              <tr>
+                <td style={{ fontWeight: 600 }}>Configured Limits</td>
+                <td>
+                  {tenant.maxStations} stations · {tenant.maxTanks} tanks · {tenant.maxPumps} pumps
                 </td>
               </tr>
               <tr>

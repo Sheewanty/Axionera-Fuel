@@ -11,6 +11,7 @@ interface HeaderProps {
   avatarInitials: string;
   stations: { id: string; name: string }[];
   fallbackStationId: string | null;
+  showStationSwitcher?: boolean;
   /** Server Action for signing out. Called via form action to preserve Server Action semantics. */
   onSignOut?: () => Promise<void>;
 }
@@ -23,6 +24,7 @@ export default function Header({
   avatarInitials,
   stations,
   fallbackStationId,
+  showStationSwitcher = true,
   onSignOut,
 }: HeaderProps) {
   const router = useRouter();
@@ -60,29 +62,30 @@ export default function Header({
 
       {/* Right — Station switcher + user account + sign-out */}
       <div className="header-right">
-        {/* Station switcher */}
-        <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-md border border-gray-200">
-          <Store size={14} className="text-gray-500" />
-          {stations.length === 0 ? (
-            <span className="text-sm text-gray-500">No stations</span>
-          ) : stations.length === 1 ? (
-            <span className="text-sm font-medium text-gray-700">{stations[0].name}</span>
-          ) : (
-            <select
-              value={currentStationId || ""}
-              onChange={handleStationChange}
-              className="bg-transparent border-none text-sm font-medium text-gray-700 focus:ring-0 cursor-pointer outline-none appearance-none pr-4"
-              style={{ backgroundImage: 'url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'m6 8 4 4 4-4\'/%3E%3C/svg%3E")', backgroundPosition: 'right center', backgroundRepeat: 'no-repeat', backgroundSize: '1.2em 1.2em' }}
-            >
-              <option value="" disabled>Select Station</option>
-              {stations.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
+        {showStationSwitcher && (
+          <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-md border border-gray-200">
+            <Store size={14} className="text-gray-500" />
+            {stations.length === 0 ? (
+              <span className="text-sm text-gray-500">No stations</span>
+            ) : stations.length === 1 ? (
+              <span className="text-sm font-medium text-gray-700">{stations[0].name}</span>
+            ) : (
+              <select
+                value={currentStationId || ""}
+                onChange={handleStationChange}
+                className="bg-transparent border-none text-sm font-medium text-gray-700 focus:ring-0 cursor-pointer outline-none appearance-none pr-4"
+                style={{ backgroundImage: 'url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'m6 8 4 4 4-4\'/%3E%3C/svg%3E")', backgroundPosition: 'right center', backgroundRepeat: 'no-repeat', backgroundSize: '1.2em 1.2em' }}
+              >
+                <option value="" disabled>Select Station</option>
+                {stations.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
 
         {/* User account */}
         <div className="user-account">

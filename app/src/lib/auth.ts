@@ -65,6 +65,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        if (user.isSuperAdmin) {
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            tenantId: "",
+            role: "SUPER_ADMIN",
+            membershipStationId: "",
+            activeStationId: null,
+          };
+        }
+
         // 3. Find the user's primary membership (tenant-wide first, then station-scoped)
         const membership = await prisma.membership.findFirst({
           where: { userId: user.id },
@@ -72,6 +84,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
 
         if (!membership) return null;
+
+        const tenant = await prisma.tenant.findUnique({
+          where: { id: membership.tenantId },
+          select: { subscriptionStatus: true },
+        });
+        if (!tenant || tenant.subscriptionStatus === "SUSPENDED" || tenant.subscriptionStatus === "CANCELLED") {
+          return null;
+        }
 
         // 4. Determine activeStationId:
         //    - Tenant-wide roles start with null (station selector shown in M3)
@@ -121,4 +141,3 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
 });
-

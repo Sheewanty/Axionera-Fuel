@@ -96,6 +96,12 @@ export function requireRole(session: AuthSession, allowedRoles: Role[]): void {
   }
 }
 
+export function requireSuperAdmin(session: AuthSession): void {
+  if (session.user.role !== "SUPER_ADMIN") {
+    throw new AccessDeniedError("Super admin access required");
+  }
+}
+
 /**
  * Asserts the session's access level for a given operation is sufficient.
  *

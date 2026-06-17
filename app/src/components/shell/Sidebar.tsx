@@ -63,6 +63,7 @@ const ITEM_ICONS: Record<string, React.ElementType> = {
   "clock-rotate-left": Gauge,
   "plug-circle-check": Gauge,
   "lock": Shield,
+  "users": Gauge,
 };
 
 function GroupIcon({ name }: { name: string }) {

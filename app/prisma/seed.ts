@@ -83,6 +83,10 @@ async function main() {
       name: "GOIL Ghana Ltd",
       slug: "goil-ghana",
       subscriptionStatus: "ACTIVE",
+      subscriptionPackage: "PRO",
+      maxStations: 10,
+      maxTanks: 40,
+      maxPumps: 40,
       billingEmail: "accounts@goil.com.gh",
     },
   });
