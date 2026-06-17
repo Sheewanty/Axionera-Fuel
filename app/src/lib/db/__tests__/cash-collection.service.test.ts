@@ -16,6 +16,11 @@ describe("CashCollection Service", () => {
           { cashReceived: 3000 }
         ]),
       },
+      creditorLedgerEntry: {
+        findMany: vi.fn().mockResolvedValue([
+          { amount: 200 },
+        ]),
+      },
       expenditure: {
         findMany: vi.fn().mockResolvedValue([
           { amount: 1000, paymentToBank: 0 },
@@ -45,20 +50,20 @@ describe("CashCollection Service", () => {
       select: { cashReceived: true },
     });
     
-    // total cash received = 8000
+    // total cash received = 8000 pump cash + 200 creditor payments = 8200
     // total net expenditure = (1000 - 0) + (500 - 100) = 1400
     // previous banked = 1000
-    // base expected cash = 8000 - 1400 = 6600
-    // remaining expected = 6600 - 1000 = 5600
+    // base expected cash = 8200 - 1400 = 6800
+    // remaining expected = 6800 - 1000 = 5800
     // amount to bank = 6000
-    // variance = 6000 - 5600 = +400
+    // variance = 6000 - 5800 = +200
 
     expect(mockDb.cashCollection.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         tenantId: "tenant_1",
         amountToBank: 6000,
-        expectedCash: 5600,
-        variance: 400,
+        expectedCash: 5800,
+        variance: 200,
       }),
     });
   });

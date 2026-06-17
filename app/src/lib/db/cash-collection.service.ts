@@ -6,6 +6,19 @@ import { appendCorrectionNote } from "../corrections";
 
 const LOCKED_SESSION_STATUSES = new Set(["READY_FOR_REVIEW", "APPROVED"]);
 
+async function getTotalCreditorPayments(tenantId: string, dailySessionId: string, db: Db): Promise<number> {
+  const creditorPayments = await db.creditorLedgerEntry.findMany({
+    where: {
+      tenantId,
+      dailySessionId,
+      type: "PAYMENT",
+    },
+    select: { amount: true },
+  });
+
+  return creditorPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+}
+
 export async function createCashCollection(
   tenantId: string,
   actorUserId: string,
@@ -31,7 +44,9 @@ export async function createCashCollection(
     },
     select: { cashReceived: true },
   });
-  const totalCashReceived = pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0);
+  const totalPumpCashReceived = pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0);
+  const totalCreditorPayments = await getTotalCreditorPayments(tenantId, input.dailySessionId, db);
+  const totalCashReceived = totalPumpCashReceived + totalCreditorPayments;
 
   // Calculate net expenditure for this session
   const expenditures = await db.expenditure.findMany({
@@ -110,7 +125,9 @@ export async function correctCashCollection(
     where: { tenantId, dailySessionId: input.dailySessionId },
     select: { cashReceived: true },
   });
-  const totalCashReceived = pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0);
+  const totalPumpCashReceived = pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0);
+  const totalCreditorPayments = await getTotalCreditorPayments(tenantId, input.dailySessionId, db);
+  const totalCashReceived = totalPumpCashReceived + totalCreditorPayments;
 
   const expenditures = await db.expenditure.findMany({
     where: { tenantId, dailySessionId: input.dailySessionId },

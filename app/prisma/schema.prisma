@@ -26,6 +26,7 @@ model Tenant {
   stations    Station[]
   memberships Membership[]
   products    Product[]
+  creditors   Creditor[]
 }
 
 model Station {
@@ -38,7 +39,7 @@ model Station {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant          Tenant             @relation(fields: [tenantId], references: [id])
+  tenant          Tenant                @relation(fields: [tenantId], references: [id])
   // Note: Membership.stationId references this ID but has no Prisma FK relation
   // (sentinel "" used for tenant-wide memberships — see Membership model comments)
   pumps           Pump[]
@@ -50,6 +51,8 @@ model Station {
   discharges      ProductDischarge[]
   cashCollections CashCollection[]
   paymentDetails  PaymentDetail[]
+  creditors       Creditor[]
+  creditorLedger  CreditorLedgerEntry[]
   expenditures    Expenditure[]
   martSales       MartSale[]
   auditLogs       AuditLog[]
@@ -149,7 +152,7 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  tenant         Tenant                @relation(fields: [tenantId], references: [id])
   priceHistory   PriceHistory[]
   nozzles        Nozzle[]
   tanks          Tank[]
@@ -157,6 +160,7 @@ model Product {
   tankDippings   TankDipping[]
   discharges     ProductDischarge[]
   paymentDetails PaymentDetail[]
+  creditorLedger CreditorLedgerEntry[]
 }
 
 model PriceHistory {
@@ -238,7 +242,7 @@ model DailySession {
   closedAt        DateTime?
   supervisorNotes String?
 
-  station           Station            @relation(fields: [stationId], references: [id])
+  station           Station               @relation(fields: [stationId], references: [id])
   pumpReadings      PumpReading[]
   tankDippings      TankDipping[]
   cashCollections   CashCollection[]
@@ -246,6 +250,7 @@ model DailySession {
   expenditures      Expenditure[]
   martSales         MartSale[]
   productDischarges ProductDischarge[]
+  creditorLedger    CreditorLedgerEntry[]
 
   @@unique([tenantId, stationId, businessDate, shift])
 }
@@ -270,7 +275,7 @@ model PumpReading {
   gocardAmount      Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
   couponAmount      Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
   ghqrAmount        Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
-  creditorsAmount   Decimal  @default(0) @db.Decimal(12, 2) // HQ settlement
+  creditorsAmount   Decimal  @default(0) @db.Decimal(12, 2) // credit sales, tracked in controlled creditor ledger
   variance          Decimal  @db.Decimal(12, 2) // server computed: totalCollected - amountExpected
   isClosingRecorded Boolean  @default(true)
   remarks           String?
@@ -371,7 +376,7 @@ model PaymentDetail {
   businessDate    DateTime @db.Date
   productId       String?
   pumpReadingId   String?
-  channel         String // GO_CARD | VISA | GOIL_COUPON | YY_COUPON | GHQR | CREDITOR
+  channel         String // GO_CARD | VISA | GOIL_COUPON | YY_COUPON | GHQR
   amount          Decimal  @db.Decimal(12, 2)
   customerName    String?
   attendantName   String?
@@ -392,6 +397,67 @@ model PaymentDetail {
   @@index([tenantId, dailySessionId])
   @@index([tenantId, stationId, businessDate])
   @@index([tenantId, channel, status])
+}
+
+model Creditor {
+  id          String   @id @default(cuid())
+  tenantId    String
+  stationId   String
+  name        String
+  phone       String?
+  email       String?
+  creditLimit Decimal? @db.Decimal(12, 2)
+  status      String   @default("ACTIVE") // ACTIVE | INACTIVE
+  notes       String?
+  createdBy   String
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant        Tenant                @relation(fields: [tenantId], references: [id])
+  station       Station               @relation(fields: [stationId], references: [id])
+  ledgerEntries CreditorLedgerEntry[]
+
+  @@unique([tenantId, stationId, name])
+  @@index([tenantId, stationId, status])
+}
+
+model CreditorLedgerEntry {
+  id                 String    @id @default(cuid())
+  tenantId           String
+  stationId          String
+  dailySessionId     String
+  creditorId         String
+  businessDate       DateTime  @db.Date
+  type               String // SALE | PAYMENT
+  amount             Decimal   @db.Decimal(12, 2)
+  productId          String?
+  pumpReadingId      String?
+  paymentMethod      String? // CASH | CHEQUE | CARD | MOMO
+  chequeNumber       String?
+  chequeName         String?
+  chequeBank         String?
+  chequeBranch       String?
+  chequeClearingDate DateTime? @db.Date
+  cashReceivedDate   DateTime? @db.Date
+  cardDetails        String?
+  momoOperator       String?
+  momoNumber         String?
+  referenceNumber    String?
+  remarks            String?
+  createdBy          String
+  updatedBy          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  station      Station      @relation(fields: [stationId], references: [id])
+  dailySession DailySession @relation(fields: [dailySessionId], references: [id])
+  creditor     Creditor     @relation(fields: [creditorId], references: [id])
+  product      Product?     @relation(fields: [productId], references: [id])
+
+  @@index([tenantId, stationId, dailySessionId])
+  @@index([tenantId, creditorId, businessDate])
+  @@index([tenantId, type, paymentMethod])
 }
 
 model CashCollection {

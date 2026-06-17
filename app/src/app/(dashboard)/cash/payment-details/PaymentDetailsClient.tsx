@@ -35,12 +35,11 @@ const channelLabels: Record<string, string> = {
   GOIL_COUPON: "GOIL Coupon",
   YY_COUPON: "YY Coupon",
   GHQR: "GHQR / MoMo",
-  CREDITOR: "Creditor",
 };
 
 function fieldLabel(field: string): string {
   const labels: Record<string, string> = {
-    customerName: "Customer / creditor",
+    customerName: "Customer",
     referenceNumber: "Reference",
     serialNumber: "Serial number",
   };
@@ -174,7 +173,6 @@ export default function PaymentDetailsClient({
                 <option value="GOIL_COUPON">GOIL Coupon</option>
                 <option value="YY_COUPON">YY Coupon</option>
                 <option value="GHQR">GHQR / MoMo</option>
-                <option value="CREDITOR">Creditor</option>
               </select>
             </label>
             <label className="form-group">
@@ -191,7 +189,7 @@ export default function PaymentDetailsClient({
               </select>
             </label>
             <label className="form-group">
-              <span className="form-label">Customer / Creditor</span>
+              <span className="form-label">Customer</span>
               <input className="form-input" name="customerName" />
             </label>
             <label className="form-group">

@@ -17,7 +17,7 @@ const paymentDetailSchema = z.object({
   stationId: z.string().min(1, "Station is required"),
   dailySessionId: z.string().min(1, "Daily session is required"),
   productId: z.string().optional(),
-  channel: z.enum(["GO_CARD", "VISA", "GOIL_COUPON", "YY_COUPON", "GHQR", "CREDITOR"]),
+  channel: z.enum(["GO_CARD", "VISA", "GOIL_COUPON", "YY_COUPON", "GHQR"]),
   amount: z.coerce.number().finite("Amount must be valid").positive("Amount must be greater than zero"),
   customerName: z.string().trim().optional(),
   attendantName: z.string().trim().optional(),
@@ -32,9 +32,6 @@ const paymentDetailSchema = z.object({
   }
   if (data.channel === "GHQR" && !data.referenceNumber) {
     ctx.addIssue({ code: "custom", path: ["referenceNumber"], message: "GHQR/MoMo reference is required" });
-  }
-  if (data.channel === "CREDITOR" && !data.customerName) {
-    ctx.addIssue({ code: "custom", path: ["customerName"], message: "Creditor/customer name is required" });
   }
 });
 

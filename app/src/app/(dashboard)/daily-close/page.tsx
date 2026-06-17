@@ -47,6 +47,7 @@ export default async function DailyClosePage({
       productDischarges: true,
       expenditures: true,
       martSales: true,
+      creditorLedger: true,
     },
   });
 
@@ -92,11 +93,14 @@ export default async function DailyClosePage({
 
   // 1. Calculate Pump Totals
   const totalLitresSold = dailySession.pumpReadings.reduce((sum, r) => sum + Number(r.litresSold), 0);
-  const totalPumpCash = dailySession.pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0);
+  const totalCreditorPayments = dailySession.creditorLedger
+    .filter((entry) => entry.type === "PAYMENT")
+    .reduce((sum, entry) => sum + Number(entry.amount), 0);
+  const totalPumpCash = dailySession.pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0) + totalCreditorPayments;
   const totalPumpExpected = dailySession.pumpReadings.reduce((sum, r) => sum + (Number(r.litresSold) * Number(r.pricePerLitre)), 0);
   const totalPumpVariance = dailySession.pumpReadings.reduce((sum, r) => sum + Number(r.variance), 0);
   const totalHqSettlement = dailySession.pumpReadings.reduce((sum, r) => {
-    return sum + Number(r.gocardAmount) + Number(r.couponAmount) + Number(r.ghqrAmount) + Number(r.creditorsAmount);
+    return sum + Number(r.gocardAmount) + Number(r.couponAmount) + Number(r.ghqrAmount);
   }, 0);
 
   // 2. Calculate Tank Totals

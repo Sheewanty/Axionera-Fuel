@@ -95,6 +95,20 @@ export default async function ProductDischargePage({
     productName: t.product.name,
   }));
 
+  const supervisorMemberships = await prisma.membership.findMany({
+    where: {
+      tenantId: session.user.tenantId,
+      stationId: { in: ["", targetStationId] },
+      role: { in: ["OWNER", "ADMIN", "STATION_MANAGER", "SUPERVISOR"] },
+      user: { status: "ACTIVE" },
+    },
+    include: { user: true },
+  });
+
+  const supervisors = Array.from(
+    new Map(supervisorMemberships.map((membership) => [membership.user.id, membership.user.name])).entries()
+  ).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+
   const formattedDate = formatDisplayDate(dailySession.businessDate);
 
   return (
@@ -111,6 +125,7 @@ export default async function ProductDischargePage({
         sessionStatus={dailySession.status}
         discharges={discharges}
         tanks={tanks}
+        supervisors={supervisors}
       />
     </>
   );

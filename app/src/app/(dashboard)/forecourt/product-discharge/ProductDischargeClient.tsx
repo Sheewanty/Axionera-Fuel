@@ -44,12 +44,18 @@ type TankDef = {
   productName: string;
 };
 
+type SupervisorOption = {
+  id: string;
+  name: string;
+};
+
 interface Props {
   stationId: string;
   dailySessionId: string;
   sessionStatus: string;
   discharges: DischargeSummary[];
   tanks: TankDef[];
+  supervisors: SupervisorOption[];
 }
 
 export default function ProductDischargeClient({
@@ -58,6 +64,7 @@ export default function ProductDischargeClient({
   sessionStatus,
   discharges,
   tanks,
+  supervisors,
 }: Props) {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -95,6 +102,10 @@ export default function ProductDischargeClient({
   const [correctionReason, setCorrectionReason] = useState("");
 
   const selectedTank = tanks.find((t) => t.id === tankId);
+  const expectedAfterTankLitres =
+    (Number(beforeTankLitres) || 0) +
+    (Number(productDischargedLitres) || 0) +
+    (Number(topUpLitres) || 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -384,7 +395,19 @@ export default function ProductDischargeClient({
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-700">Station Supervisor</label>
-                <input type="text" value={stationSupervisorName} onChange={(e) => setStationSupervisorName(e.target.value)} className="w-full px-3 py-2 border rounded-md" />
+                <select
+                  value={stationSupervisorName}
+                  onChange={(e) => setStationSupervisorName(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md"
+                >
+                  <option value="">Select supervisor...</option>
+                  {stationSupervisorName && !supervisors.some((supervisor) => supervisor.name === stationSupervisorName) && (
+                    <option value={stationSupervisorName}>{stationSupervisorName}</option>
+                  )}
+                  {supervisors.map((supervisor) => (
+                    <option key={supervisor.id} value={supervisor.name}>{supervisor.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-700">Seal Numbers</label>
@@ -449,7 +472,17 @@ export default function ProductDischargeClient({
                 <input required type="number" step="0.01" value={topUpLitres} onChange={(e) => setTopUpLitres(e.target.value)} className="w-full px-3 py-2 border rounded-md" />
               </div>
               <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-700">After Tank Litres *</label>
+                <label className="text-sm font-medium text-slate-700">Expected After Tank (computed)</label>
+                <input
+                  type="text"
+                  value={`${expectedAfterTankLitres.toFixed(2)} L`}
+                  className="w-full px-3 py-2 border rounded-md bg-slate-50 font-semibold"
+                  readOnly
+                  tabIndex={-1}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">After Tank Litres (measured) *</label>
                 <input required type="number" step="0.01" value={afterTankLitres} onChange={(e) => setAfterTankLitres(e.target.value)} className="w-full px-3 py-2 border rounded-md border-primary-500" />
               </div>
             </div>

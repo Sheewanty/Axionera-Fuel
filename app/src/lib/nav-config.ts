@@ -158,6 +158,13 @@ export const NAV_CONFIG: NavGroup[] = [
         access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "full", SUPERVISOR: "full", ACCOUNTANT: "entry", AUDITOR: "view" },
       },
       {
+        label: "Creditors",
+        href: "/cash/creditors",
+        icon: "users",
+        stationScoped: true,
+        access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "full", SUPERVISOR: "full", ACCOUNTANT: "entry", AUDITOR: "view" },
+      },
+      {
         label: "Cash Variance",
         href: "/cash/variance",
         icon: "scale-balanced",
