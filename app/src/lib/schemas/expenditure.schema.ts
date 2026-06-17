@@ -14,10 +14,28 @@ const optionalSessionId = z.preprocess(
 const finiteAmount = (message: string) =>
   z.number().finite(message).min(0, message);
 
+const expenditureCategories = [
+  "Salary",
+  "Allowance / Bonus",
+  "Stationery",
+  "Repairs & Maintenance",
+  "Utilities",
+  "Generator Fuel",
+  "Bank Charges",
+  "Cleaning",
+  "Security",
+  "Transport",
+  "Lube Bay Supplies",
+  "Other",
+] as const;
+
 export const createExpenditureSchema = z.object({
   stationId: z.string().min(1, "Station ID is required"),
   dailySessionId: optionalSessionId,
-  category: z.string().min(1, "Category is required"),
+  category: z.string().min(1, "Category is required").refine(
+    (value) => (expenditureCategories as readonly string[]).includes(value),
+    "Select a valid expenditure category"
+  ),
   amount: z.number().finite("Amount must be a valid number").positive("Amount must be greater than zero"),
   paymentToBank: finiteAmount("Payment to bank must be a non-negative number").default(0),
   paidBy: z.string().min(1, "Paid by is required"),

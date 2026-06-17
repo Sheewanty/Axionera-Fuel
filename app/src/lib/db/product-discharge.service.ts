@@ -21,6 +21,9 @@ export type CreateProductDischargeInput = {
   couplingHeightCm?: number;
   calibrationCertificate?: string;
   tbar?: number;
+  tankerWaterTestStatus?: string;
+  receivingTankWaterTestStatus?: string;
+  waterTestRemarks?: string;
   topUpLitres: number;
   beforeTankLitres: number;
   afterTankLitres: number;
@@ -83,6 +86,9 @@ export async function createProductDischarge(db: Db, input: CreateProductDischar
       couplingHeightCm: input.couplingHeightCm,
       calibrationCertificate: input.calibrationCertificate,
       tbar: input.tbar,
+      tankerWaterTestStatus: input.tankerWaterTestStatus ?? "CLEAR",
+      receivingTankWaterTestStatus: input.receivingTankWaterTestStatus ?? "CLEAR",
+      waterTestRemarks: input.waterTestRemarks,
       topUpLitres: input.topUpLitres,
       beforeTankLitres: input.beforeTankLitres,
       expectedTankAfterDischarge,
@@ -116,6 +122,9 @@ export type UpdateProductDischargeInput = {
   couplingHeightCm?: number;
   calibrationCertificate?: string;
   tbar?: number;
+  tankerWaterTestStatus?: string;
+  receivingTankWaterTestStatus?: string;
+  waterTestRemarks?: string;
   topUpLitres: number;
   beforeTankLitres: number;
   afterTankLitres: number;
@@ -184,6 +193,9 @@ export async function updateProductDischarge(db: Db, input: UpdateProductDischar
       couplingHeightCm: input.couplingHeightCm,
       calibrationCertificate: input.calibrationCertificate,
       tbar: input.tbar,
+      tankerWaterTestStatus: input.tankerWaterTestStatus ?? "CLEAR",
+      receivingTankWaterTestStatus: input.receivingTankWaterTestStatus ?? "CLEAR",
+      waterTestRemarks: input.waterTestRemarks,
       topUpLitres: input.topUpLitres,
       beforeTankLitres: input.beforeTankLitres,
       expectedTankAfterDischarge,

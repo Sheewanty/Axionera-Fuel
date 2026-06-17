@@ -49,6 +49,7 @@ model Station {
   tankDippings    TankDipping[]
   discharges      ProductDischarge[]
   cashCollections CashCollection[]
+  paymentDetails  PaymentDetail[]
   expenditures    Expenditure[]
   martSales       MartSale[]
   auditLogs       AuditLog[]
@@ -148,13 +149,14 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant       Tenant             @relation(fields: [tenantId], references: [id])
-  priceHistory PriceHistory[]
-  nozzles      Nozzle[]
-  tanks        Tank[]
-  pumpReadings PumpReading[]
-  tankDippings TankDipping[]
-  discharges   ProductDischarge[]
+  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  priceHistory   PriceHistory[]
+  nozzles        Nozzle[]
+  tanks          Tank[]
+  pumpReadings   PumpReading[]
+  tankDippings   TankDipping[]
+  discharges     ProductDischarge[]
+  paymentDetails PaymentDetail[]
 }
 
 model PriceHistory {
@@ -240,6 +242,7 @@ model DailySession {
   pumpReadings      PumpReading[]
   tankDippings      TankDipping[]
   cashCollections   CashCollection[]
+  paymentDetails    PaymentDetail[]
   expenditures      Expenditure[]
   martSales         MartSale[]
   productDischarges ProductDischarge[]
@@ -315,38 +318,41 @@ model TankDipping {
 }
 
 model ProductDischarge {
-  id                         String   @id @default(cuid())
-  tenantId                   String
-  stationId                  String
-  dailySessionId             String
-  businessDate               DateTime @db.Date
-  tankId                     String
-  productId                  String
-  supplierName               String
-  invoiceNumber              String
-  sealNumbers                String?
-  sealNumbersContinued       String?
-  compartmentNumber          String?
-  invoiceMeasurement         Decimal  @db.Decimal(12, 2)
-  stationMeasurement         Decimal? @db.Decimal(12, 2)
-  productDischargedLitres    Decimal  @db.Decimal(12, 2)
-  vehicleRegistrationNumber  String?
-  stationSupervisorName      String?
-  couplingHeightCm           Decimal? @db.Decimal(8, 2)
-  calibrationCertificate     String?
-  tbar                       Decimal? @db.Decimal(8, 2)
-  topUpLitres                Decimal  @default(0) @db.Decimal(12, 2)
-  beforeTankLitres           Decimal  @db.Decimal(12, 2)
-  expectedTankAfterDischarge Decimal  @db.Decimal(12, 2) // server computed
-  afterTankLitres            Decimal  @db.Decimal(12, 2)
-  dischargeVarianceLitres    Decimal  @db.Decimal(12, 2) // server computed
-  driverName                 String?
-  dealerName                 String?
-  remarks                    String?
-  createdBy                  String
-  updatedBy                  String?
-  createdAt                  DateTime @default(now())
-  updatedAt                  DateTime @updatedAt
+  id                           String   @id @default(cuid())
+  tenantId                     String
+  stationId                    String
+  dailySessionId               String
+  businessDate                 DateTime @db.Date
+  tankId                       String
+  productId                    String
+  supplierName                 String
+  invoiceNumber                String
+  sealNumbers                  String?
+  sealNumbersContinued         String?
+  compartmentNumber            String?
+  invoiceMeasurement           Decimal  @db.Decimal(12, 2)
+  stationMeasurement           Decimal? @db.Decimal(12, 2)
+  productDischargedLitres      Decimal  @db.Decimal(12, 2)
+  vehicleRegistrationNumber    String?
+  stationSupervisorName        String?
+  couplingHeightCm             Decimal? @db.Decimal(8, 2)
+  calibrationCertificate       String?
+  tbar                         Decimal? @db.Decimal(8, 2)
+  tankerWaterTestStatus        String   @default("CLEAR") // CLEAR | WATER_DETECTED | NOT_TESTED
+  receivingTankWaterTestStatus String   @default("CLEAR") // CLEAR | WATER_DETECTED | NOT_TESTED
+  waterTestRemarks             String?
+  topUpLitres                  Decimal  @default(0) @db.Decimal(12, 2)
+  beforeTankLitres             Decimal  @db.Decimal(12, 2)
+  expectedTankAfterDischarge   Decimal  @db.Decimal(12, 2) // server computed
+  afterTankLitres              Decimal  @db.Decimal(12, 2)
+  dischargeVarianceLitres      Decimal  @db.Decimal(12, 2) // server computed
+  driverName                   String?
+  dealerName                   String?
+  remarks                      String?
+  createdBy                    String
+  updatedBy                    String?
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
 
   station      Station      @relation(fields: [stationId], references: [id])
   product      Product      @relation(fields: [productId], references: [id])
@@ -355,6 +361,37 @@ model ProductDischarge {
 
   @@index([tenantId, dailySessionId])
   @@index([tenantId, dailySessionId, tankId])
+}
+
+model PaymentDetail {
+  id              String   @id @default(cuid())
+  tenantId        String
+  stationId       String
+  dailySessionId  String
+  businessDate    DateTime @db.Date
+  productId       String?
+  pumpReadingId   String?
+  channel         String // GO_CARD | VISA | GOIL_COUPON | YY_COUPON | GHQR | CREDITOR
+  amount          Decimal  @db.Decimal(12, 2)
+  customerName    String?
+  attendantName   String?
+  referenceNumber String?
+  serialNumber    String?
+  phoneNumber     String?
+  status          String   @default("PENDING") // PENDING | SUBMITTED_TO_HQ | SETTLED | CANCELLED
+  remarks         String?
+  createdBy       String
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  station      Station      @relation(fields: [stationId], references: [id])
+  dailySession DailySession @relation(fields: [dailySessionId], references: [id])
+  product      Product?     @relation(fields: [productId], references: [id])
+
+  @@index([tenantId, dailySessionId])
+  @@index([tenantId, stationId, businessDate])
+  @@index([tenantId, channel, status])
 }
 
 model CashCollection {

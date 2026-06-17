@@ -28,6 +28,9 @@ type DischargeSummary = {
   couplingHeightCm: number | null;
   tbar: number | null;
   calibrationCertificate: string | null;
+  tankerWaterTestStatus: string;
+  receivingTankWaterTestStatus: string;
+  waterTestRemarks: string | null;
   sealNumbers: string | null;
   sealNumbersContinued: string | null;
   compartmentNumber: string | null;
@@ -81,6 +84,9 @@ export default function ProductDischargeClient({
   const [couplingHeightCm, setCouplingHeightCm] = useState("");
   const [tbar, setTbar] = useState("");
   const [calibrationCertificate, setCalibrationCertificate] = useState("");
+  const [tankerWaterTestStatus, setTankerWaterTestStatus] = useState("CLEAR");
+  const [receivingTankWaterTestStatus, setReceivingTankWaterTestStatus] = useState("CLEAR");
+  const [waterTestRemarks, setWaterTestRemarks] = useState("");
   const [sealNumbers, setSealNumbers] = useState("");
   const [sealNumbersContinued, setSealNumbersContinued] = useState("");
   const [compartmentNumber, setCompartmentNumber] = useState("");
@@ -121,6 +127,9 @@ export default function ProductDischargeClient({
       couplingHeightCm: couplingHeightCm ? Number(couplingHeightCm) : undefined,
       tbar: tbar ? Number(tbar) : undefined,
       calibrationCertificate: calibrationCertificate || undefined,
+      tankerWaterTestStatus,
+      receivingTankWaterTestStatus,
+      waterTestRemarks: waterTestRemarks || undefined,
       sealNumbers: sealNumbers || undefined,
       sealNumbersContinued: sealNumbersContinued || undefined,
       compartmentNumber: compartmentNumber || undefined,
@@ -166,6 +175,9 @@ export default function ProductDischargeClient({
     setCouplingHeightCm("");
     setTbar("");
     setCalibrationCertificate("");
+    setTankerWaterTestStatus("CLEAR");
+    setReceivingTankWaterTestStatus("CLEAR");
+    setWaterTestRemarks("");
     setSealNumbers("");
     setSealNumbersContinued("");
     setCompartmentNumber("");
@@ -192,6 +204,9 @@ export default function ProductDischargeClient({
     setCouplingHeightCm(discharge.couplingHeightCm?.toString() ?? "");
     setTbar(discharge.tbar?.toString() ?? "");
     setCalibrationCertificate(discharge.calibrationCertificate ?? "");
+    setTankerWaterTestStatus(discharge.tankerWaterTestStatus);
+    setReceivingTankWaterTestStatus(discharge.receivingTankWaterTestStatus);
+    setWaterTestRemarks(discharge.waterTestRemarks ?? "");
     setSealNumbers(discharge.sealNumbers ?? "");
     setSealNumbersContinued(discharge.sealNumbersContinued ?? "");
     setCompartmentNumber(discharge.compartmentNumber ?? "");
@@ -226,13 +241,14 @@ export default function ProductDischargeClient({
               <th className="px-4 py-3 text-right font-medium text-slate-600">Top-up (L)</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Expected (L)</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Variance (L)</th>
+              <th className="px-4 py-3 text-left font-medium text-slate-600">Water Test</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {discharges.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={10} className="px-4 py-8 text-center text-slate-500">
                   No discharges recorded for this session.
                 </td>
               </tr>
@@ -250,6 +266,11 @@ export default function ProductDischargeClient({
                     d.dischargeVarianceLitres < 0 ? "text-red-600" : d.dischargeVarianceLitres > 0 ? "text-green-600" : "text-slate-600"
                   }`}>
                     {d.dischargeVarianceLitres > 0 ? "+" : ""}{d.dischargeVarianceLitres.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600">
+                    {d.tankerWaterTestStatus === "WATER_DETECTED" || d.receivingTankWaterTestStatus === "WATER_DETECTED"
+                      ? "Water detected"
+                      : "Clear"}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
@@ -393,6 +414,26 @@ export default function ProductDischargeClient({
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-700">Calibration Certificate</label>
                 <input type="text" value={calibrationCertificate} onChange={(e) => setCalibrationCertificate(e.target.value)} className="w-full px-3 py-2 border rounded-md" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">Tanker Water Test</label>
+                <select value={tankerWaterTestStatus} onChange={(e) => setTankerWaterTestStatus(e.target.value)} className="w-full px-3 py-2 border rounded-md">
+                  <option value="CLEAR">Clear / no water</option>
+                  <option value="WATER_DETECTED">Water detected</option>
+                  <option value="NOT_TESTED">Not tested</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">Receiving Tank Water Test</label>
+                <select value={receivingTankWaterTestStatus} onChange={(e) => setReceivingTankWaterTestStatus(e.target.value)} className="w-full px-3 py-2 border rounded-md">
+                  <option value="CLEAR">Clear / no water</option>
+                  <option value="WATER_DETECTED">Water detected</option>
+                  <option value="NOT_TESTED">Not tested</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-700">Water Test Remarks</label>
+                <input type="text" value={waterTestRemarks} onChange={(e) => setWaterTestRemarks(e.target.value)} className="w-full px-3 py-2 border rounded-md" />
               </div>
 
               <div className="space-y-1">

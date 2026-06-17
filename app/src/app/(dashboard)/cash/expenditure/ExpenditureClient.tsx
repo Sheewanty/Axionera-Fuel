@@ -72,6 +72,21 @@ const blankForm: FormState = {
   correctionReason: "",
 };
 
+const EXPENDITURE_CATEGORIES = [
+  "Salary",
+  "Allowance / Bonus",
+  "Stationery",
+  "Repairs & Maintenance",
+  "Utilities",
+  "Generator Fuel",
+  "Bank Charges",
+  "Cleaning",
+  "Security",
+  "Transport",
+  "Lube Bay Supplies",
+  "Other",
+];
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "An unknown error occurred";
 }
@@ -352,12 +367,17 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <label className="form-group">
               <span className="form-label">Category *</span>
-              <input
+              <select
                 required
                 value={form.category}
                 onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-                className="form-input"
-              />
+                className="form-select"
+              >
+                <option value="">Select category</option>
+                {EXPENDITURE_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
             </label>
             <label className="form-group">
               <span className="form-label">Paid By *</span>

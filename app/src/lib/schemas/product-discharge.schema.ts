@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { correctionReasonSchema } from "../corrections";
 
+const waterTestStatusSchema = z.enum(["CLEAR", "WATER_DETECTED", "NOT_TESTED"]);
+
 export const createProductDischargeSchema = z.object({
   stationId: z.string().min(1),
   dailySessionId: z.string().min(1),
@@ -21,6 +23,9 @@ export const createProductDischargeSchema = z.object({
   couplingHeightCm: z.number().min(0).finite().optional(),
   tbar: z.number().finite().optional(),
   calibrationCertificate: z.string().optional(),
+  tankerWaterTestStatus: waterTestStatusSchema.default("CLEAR"),
+  receivingTankWaterTestStatus: waterTestStatusSchema.default("CLEAR"),
+  waterTestRemarks: z.string().optional(),
   sealNumbers: z.string().optional(),
   sealNumbersContinued: z.string().optional(),
   compartmentNumber: z.string().optional(),
