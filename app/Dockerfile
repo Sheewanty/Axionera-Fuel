@@ -15,6 +15,7 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS=--max-old-space-size=1536
 RUN npm run build
 
 # ─── Stage 3: Runner ──────────────────────────────────────────────────────────
