@@ -2,7 +2,7 @@ import PageTitle from "@/components/ui/PageTitle";
 import { getRequiredSession, requireRole } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { formatDisplayDate } from "@/lib/business-date";
-import { CompanySettingsForm } from "../SetupForms";
+import { CompanySettingsForm, TenantCreationForm } from "../SetupForms";
 
 export default async function CompanyPage() {
   const session = await getRequiredSession();
@@ -36,12 +36,15 @@ export default async function CompanyPage() {
       />
 
       {["OWNER", "ADMIN"].includes(session.user.role) && (
-        <CompanySettingsForm
-          company={{
-            name: tenant.name,
-            billingEmail: tenant.billingEmail ?? "",
-          }}
-        />
+        <>
+          <TenantCreationForm />
+          <CompanySettingsForm
+            company={{
+              name: tenant.name,
+              billingEmail: tenant.billingEmail ?? "",
+            }}
+          />
+        </>
       )}
 
       {/* KPI summary */}

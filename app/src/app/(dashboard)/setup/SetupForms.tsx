@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   createUserMembershipAction,
+  createTenantAction,
   saveNozzleAction,
   saveProductAction,
   savePumpAction,
@@ -142,6 +143,73 @@ export function CompanySettingsForm({ company }: { company: Company }) {
             <input className="form-input" name="billingEmail" type="email" defaultValue={company.billingEmail} />
           </div>
           <SubmitButton pending={form.pending}>Save Company</SubmitButton>
+        </FormGrid>
+      </form>
+    </SetupPanel>
+  );
+}
+
+export function TenantCreationForm() {
+  const form = useSetupSubmit(createTenantAction);
+
+  return (
+    <SetupPanel title="Create New Company / Tenant">
+      <FormError result={form.result} />
+      {form.result?.success && (
+        <div
+          style={{
+            background: "color-mix(in srgb, var(--ax-green) 8%, white)",
+            border: "1px solid color-mix(in srgb, var(--ax-green) 30%, white)",
+            borderRadius: 8,
+            color: "var(--ax-green)",
+            fontSize: 14,
+            fontWeight: 700,
+            marginBottom: 14,
+            padding: "10px 12px",
+          }}
+        >
+          Company created. The owner can now sign in with the email and password entered below.
+        </div>
+      )}
+      <form onSubmit={form.submit}>
+        <FormGrid>
+          <div className="form-group">
+            <label className="form-label">Company Name</label>
+            <input className="form-input" name="companyName" required placeholder="Pojoba 96 Fuel" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Slug</label>
+            <input className="form-input" name="slug" placeholder="pojoba-96-fuel" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Billing Email</label>
+            <input className="form-input" name="billingEmail" type="email" placeholder="accounts@example.com" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Owner Name</label>
+            <input className="form-input" name="ownerName" required placeholder="Gideon Pojoba" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Owner Email</label>
+            <input className="form-input" name="ownerEmail" type="email" required placeholder="owner@example.com" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Owner Temporary Password</label>
+            <input className="form-input" name="ownerPassword" type="password" minLength={8} required />
+          </div>
+          <div className="form-group">
+            <label className="form-label">First Station Name</label>
+            <input className="form-input" name="stationName" placeholder="Main Station" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">First Station Code</label>
+            <input className="form-input" name="stationCode" placeholder="MAIN-01" />
+          </div>
+          <div className="form-group">
+            <label className="form-label">First Station Location</label>
+            <input className="form-input" name="stationLocation" placeholder="Accra" />
+          </div>
+          <SubmitButton pending={form.pending}>Create Company</SubmitButton>
         </FormGrid>
       </form>
     </SetupPanel>

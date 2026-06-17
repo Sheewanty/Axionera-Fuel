@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { prisma } from "@/lib/db/prisma";
 import { withMutation } from "@/lib/mutation";
 import type { Db } from "@/lib/db/types";
-import type { AuthSession } from "@/lib/session";
+import { getRequiredSession, requireRole, type AuthSession } from "@/lib/session";
+import { writeAuditLog } from "@/lib/db/audit.service";
 
 type ActionResponse = {
   success: boolean;
@@ -33,6 +35,26 @@ const optionalText = z.string().trim().optional().transform((value) => value || 
 const companySchema = z.object({
   name: z.string().trim().min(2, "Company name is required"),
   billingEmail: z.string().trim().email("Billing email must be valid").optional().or(z.literal("")),
+});
+
+const createTenantSchema = z.object({
+  companyName: z.string().trim().min(2, "Company name is required"),
+  slug: z.string().trim().min(2, "Slug is required").max(50, "Slug is too long").optional().or(z.literal("")),
+  billingEmail: z.string().trim().email("Billing email must be valid").optional().or(z.literal("")),
+  ownerName: z.string().trim().min(2, "Owner name is required"),
+  ownerEmail: z.string().trim().email("Owner email must be valid").toLowerCase(),
+  ownerPassword: z.string().min(8, "Owner password must be at least 8 characters"),
+  stationName: z.string().trim().optional().or(z.literal("")),
+  stationCode: z.string().trim().optional().or(z.literal("")),
+  stationLocation: z.string().trim().optional().or(z.literal("")),
+}).superRefine((data, ctx) => {
+  if ((data.stationName && !data.stationCode) || (!data.stationName && data.stationCode)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["stationName"],
+      message: "Provide both station name and station code, or leave both blank",
+    });
+  }
 });
 
 const stationSchema = z.object({
@@ -131,6 +153,15 @@ function initials(name: string): string {
     .join("");
 }
 
+function slugify(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 50);
+}
+
 async function assertStation(tx: Db, tenantId: string, stationId: string) {
   const station = await tx.station.findFirst({ where: { id: stationId, tenantId } });
   if (!station) throw new Error("Station was not found for this company");
@@ -169,6 +200,106 @@ export async function updateCompanyAction(formData: FormData): Promise<ActionRes
 
   try {
     const result = await mutation();
+    revalidatePath("/setup/company");
+    return { success: true, data: result };
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function createTenantAction(formData: FormData): Promise<ActionResponse> {
+  const parsed = parseForm(createTenantSchema, formData);
+  if (!parsed.success) return validationError(parsed.error);
+  const data = parsed.data as z.infer<typeof createTenantSchema>;
+
+  try {
+    const session = await getRequiredSession();
+    requireRole(session, ["OWNER", "ADMIN"]);
+
+    const slug = slugify(data.slug || data.companyName);
+    if (!slug) {
+      return {
+        success: false,
+        error: "Please correct the highlighted fields.",
+        fieldErrors: { slug: ["Slug is required"] },
+      };
+    }
+
+    const passwordHash = await bcrypt.hash(data.ownerPassword, 10);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const existingTenant = await tx.tenant.findUnique({ where: { slug } });
+      if (existingTenant) throw new Error("A company with this slug already exists");
+
+      const existingUser = await tx.user.findUnique({ where: { email: data.ownerEmail } });
+      if (existingUser) {
+        throw new Error("A user with this owner email already exists. Use a different owner email.");
+      }
+
+      const tenant = await tx.tenant.create({
+        data: {
+          name: data.companyName,
+          slug,
+          billingEmail: data.billingEmail || data.ownerEmail,
+          subscriptionStatus: "TRIAL",
+        },
+      });
+
+      const owner = await tx.user.create({
+        data: {
+          email: data.ownerEmail,
+          name: data.ownerName,
+          passwordHash,
+          avatarInitials: initials(data.ownerName),
+          status: "ACTIVE",
+        },
+      });
+
+      await tx.membership.create({
+        data: {
+          tenantId: tenant.id,
+          userId: owner.id,
+          stationId: "",
+          role: "OWNER",
+        },
+      });
+
+      let stationId: string | null = null;
+      if (data.stationName && data.stationCode) {
+        const station = await tx.station.create({
+          data: {
+            tenantId: tenant.id,
+            name: data.stationName,
+            code: data.stationCode.toUpperCase(),
+            location: data.stationLocation || null,
+            status: "ACTIVE",
+          },
+        });
+        stationId = station.id;
+      }
+
+      await writeAuditLog(
+        {
+          tenantId: session.user.tenantId,
+          stationId: null,
+          actorUserId: session.user.id,
+          entityType: "Tenant",
+          entityId: tenant.id,
+          action: "CREATE",
+          before: null,
+          after: {
+            name: tenant.name,
+            slug: tenant.slug,
+            ownerEmail: owner.email,
+            stationId,
+          },
+        },
+        tx
+      );
+
+      return { id: tenant.id };
+    });
+
     revalidatePath("/setup/company");
     return { success: true, data: result };
   } catch (error) {

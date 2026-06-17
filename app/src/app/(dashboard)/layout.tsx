@@ -3,6 +3,7 @@ import Header from "@/components/shell/Header";
 import { getRequiredSession } from "@/lib/session";
 import { signOut } from "@/lib/auth";
 import { getAccessibleStations } from "@/lib/db/station.service";
+import { prisma } from "@/lib/db/prisma";
 import type { Role } from "@/lib/nav-config";
 
 export default async function DashboardLayout({
@@ -16,8 +17,15 @@ export default async function DashboardLayout({
 
   let stations: { id: string; name: string }[] = [];
   let fallbackStationId: string | null = null;
+  let tenantName = "FuelStation OS";
 
   try {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: user.tenantId },
+      select: { name: true },
+    });
+    tenantName = tenant?.name ?? tenantName;
+
     stations = await getAccessibleStations(user.tenantId, user.membershipStationId);
     if (user.activeStationId) {
       const active = stations.find((s) => s.id === user.activeStationId);
@@ -49,7 +57,7 @@ export default async function DashboardLayout({
       <div className="main-content">
         <Header
           title="FuelStation OS"
-          subtitle={/* tenant name */ "GOIL Ghana Ltd"}
+          subtitle={tenantName}
           userName={user.name ?? user.email ?? "User"}
           userRole={user.role as Role}
           avatarInitials={avatarInitials}
