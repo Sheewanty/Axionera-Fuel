@@ -60,6 +60,7 @@ model Station {
   creditorLedger  CreditorLedgerEntry[]
   expenditures    Expenditure[]
   martSales       MartSale[]
+  lubeBaySales    LubeBaySale[]
   auditLogs       AuditLog[]
 
   @@unique([tenantId, code])
@@ -167,6 +168,7 @@ model Product {
   discharges     ProductDischarge[]
   paymentDetails PaymentDetail[]
   creditorLedger CreditorLedgerEntry[]
+  lubeBaySales   LubeBaySale[]
 }
 
 model PriceHistory {
@@ -257,6 +259,7 @@ model DailySession {
   martSales         MartSale[]
   productDischarges ProductDischarge[]
   creditorLedger    CreditorLedgerEntry[]
+  lubeBaySales      LubeBaySale[]
 
   @@unique([tenantId, stationId, businessDate, shift])
 }
@@ -423,6 +426,7 @@ model Creditor {
   tenant        Tenant                @relation(fields: [tenantId], references: [id])
   station       Station               @relation(fields: [stationId], references: [id])
   ledgerEntries CreditorLedgerEntry[]
+  lubeBaySales  LubeBaySale[]
 
   @@unique([tenantId, stationId, name])
   @@index([tenantId, stationId, status])
@@ -439,6 +443,7 @@ model CreditorLedgerEntry {
   amount             Decimal   @db.Decimal(12, 2)
   productId          String?
   pumpReadingId      String?
+  lubeBaySaleId      String?
   paymentMethod      String? // CASH | CHEQUE | CARD | MOMO
   chequeNumber       String?
   chequeName         String?
@@ -460,6 +465,7 @@ model CreditorLedgerEntry {
   dailySession DailySession @relation(fields: [dailySessionId], references: [id])
   creditor     Creditor     @relation(fields: [creditorId], references: [id])
   product      Product?     @relation(fields: [productId], references: [id])
+  lubeBaySale  LubeBaySale? @relation(fields: [lubeBaySaleId], references: [id])
 
   @@index([tenantId, stationId, dailySessionId])
   @@index([tenantId, creditorId, businessDate])
@@ -536,6 +542,49 @@ model MartSale {
   dailySession DailySession @relation(fields: [dailySessionId], references: [id])
 
   @@unique([tenantId, dailySessionId])
+}
+
+model LubeBaySale {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  stationId          String
+  dailySessionId     String
+  businessDate       DateTime @db.Date
+  vehicleReg         String
+  customerName       String?
+  customerPhone      String?
+  serviceType        String
+  lubricantProductId String?
+  quantity           Decimal  @default(0) @db.Decimal(12, 2)
+  unitPrice          Decimal  @default(0) @db.Decimal(12, 2)
+  lubricantAmount    Decimal  @db.Decimal(12, 2)
+  labourCharge       Decimal  @default(0) @db.Decimal(12, 2)
+  partsCharge        Decimal  @default(0) @db.Decimal(12, 2)
+  discount           Decimal  @default(0) @db.Decimal(12, 2)
+  totalExpected      Decimal  @db.Decimal(12, 2)
+  cashAmount         Decimal  @default(0) @db.Decimal(12, 2)
+  cardAmount         Decimal  @default(0) @db.Decimal(12, 2)
+  momoAmount         Decimal  @default(0) @db.Decimal(12, 2)
+  creditorAmount     Decimal  @default(0) @db.Decimal(12, 2)
+  creditorId         String?
+  variance           Decimal  @db.Decimal(12, 2)
+  technicianName     String?
+  supervisorName     String?
+  remarks            String?
+  createdBy          String
+  updatedBy          String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  station          Station               @relation(fields: [stationId], references: [id])
+  dailySession     DailySession          @relation(fields: [dailySessionId], references: [id])
+  lubricantProduct Product?              @relation(fields: [lubricantProductId], references: [id])
+  creditor         Creditor?             @relation(fields: [creditorId], references: [id])
+  creditorLedger   CreditorLedgerEntry[]
+
+  @@index([tenantId, stationId, businessDate])
+  @@index([tenantId, dailySessionId])
+  @@index([tenantId, vehicleReg])
 }
 
 // ─── Audit ────────────────────────────────────────────────────────────────────

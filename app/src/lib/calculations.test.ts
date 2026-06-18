@@ -9,6 +9,9 @@ import {
   calcDischargeVariance,
   calcMartNetSales,
   calcMartVariance,
+  calcLubeBayLubricantAmount,
+  calcLubeBayTotalExpected,
+  calcLubeBayVariance,
   calcNetCashPosition,
   calcNetExpenditure,
   calcPhysicalCashToBank,
@@ -103,6 +106,21 @@ describe("calcMartNetSales", () => {
 describe("calcMartVariance", () => {
   it("returns physical cash count minus mart cash sales", () => {
     expect(calcMartVariance(800, 750)).toBe(50);
+  });
+});
+
+describe("lube bay calculations", () => {
+  it("calculates lubricant amount", () => {
+    expect(calcLubeBayLubricantAmount(4, 85)).toBe(340);
+  });
+
+  it("calculates total expected sales", () => {
+    expect(calcLubeBayTotalExpected(340, 50, 120, 10)).toBe(500);
+  });
+
+  it("calculates variance across payment channels", () => {
+    expect(calcLubeBayVariance(200, 100, 100, 100, 500)).toBe(0);
+    expect(calcLubeBayVariance(200, 100, 100, 50, 500)).toBe(-50);
   });
 });
 

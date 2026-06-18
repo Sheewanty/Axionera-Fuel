@@ -231,6 +231,20 @@ export const NAV_CONFIG: NavGroup[] = [
     ],
   },
   {
+    id: "lube-bay",
+    label: "Lube Bay Operations",
+    icon: "store",
+    items: [
+      {
+        label: "Lube Bay Sales",
+        href: "/lube-bay/sales",
+        icon: "receipt",
+        stationScoped: true,
+        access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "full", SUPERVISOR: "full", ATTENDANT: "entry", ACCOUNTANT: "view", AUDITOR: "view" },
+      },
+    ],
+  },
+  {
     id: "setup",
     label: "Setup",
     icon: "sliders",

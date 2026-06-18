@@ -134,6 +134,21 @@ async function main() {
     update: {},
     create: { id: "prod-diesel", tenantId: tenant.id, name: "Diesel", category: "FUEL" },
   });
+  const engineOil5w30 = await prisma.product.upsert({
+    where: { id: "prod-lube-5w30" },
+    update: {},
+    create: { id: "prod-lube-5w30", tenantId: tenant.id, name: "GOIL Engine Oil 5W-30", category: "LUBRICANT" },
+  });
+  const engineOil15w40 = await prisma.product.upsert({
+    where: { id: "prod-lube-15w40" },
+    update: {},
+    create: { id: "prod-lube-15w40", tenantId: tenant.id, name: "GOIL Engine Oil 15W-40", category: "LUBRICANT" },
+  });
+  const gearOil = await prisma.product.upsert({
+    where: { id: "prod-lube-gear-oil" },
+    update: {},
+    create: { id: "prod-lube-gear-oil", tenantId: tenant.id, name: "GOIL Gear Oil", category: "LUBRICANT" },
+  });
   console.log("✓  Products: Super 91 | Super 95 | Diesel");
 
   // ── Ghana pump prices (GHS/L — approximate GOIL posted prices) ────────────
@@ -145,6 +160,9 @@ async function main() {
       { tenantId: tenant.id, stationId: stationAccra.id, productId: super91.id, pricePerLitre: 14.89, effectiveFrom: businessDate, createdBy: "seed" },
       { tenantId: tenant.id, stationId: stationAccra.id, productId: super95.id, pricePerLitre: 15.31, effectiveFrom: businessDate, createdBy: "seed" },
       { tenantId: tenant.id, stationId: stationAccra.id, productId: diesel.id,  pricePerLitre: 14.45, effectiveFrom: businessDate, createdBy: "seed" },
+      { tenantId: tenant.id, stationId: stationAccra.id, productId: engineOil5w30.id, pricePerLitre: 95.00, effectiveFrom: businessDate, createdBy: "seed" },
+      { tenantId: tenant.id, stationId: stationAccra.id, productId: engineOil15w40.id, pricePerLitre: 85.00, effectiveFrom: businessDate, createdBy: "seed" },
+      { tenantId: tenant.id, stationId: stationAccra.id, productId: gearOil.id, pricePerLitre: 78.00, effectiveFrom: businessDate, createdBy: "seed" },
     ],
   });
   console.log("✓  Price history (GHS/L): Super 91 = 14.89 | Super 95 = 15.31 | Diesel = 14.45");

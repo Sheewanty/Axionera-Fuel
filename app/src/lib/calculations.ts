@@ -95,6 +95,32 @@ export function calcMartVariance(cashCount: number, cashSales: number): number {
   return cashCount - cashSales;
 }
 
+/** Lube bay lubricant line amount */
+export function calcLubeBayLubricantAmount(quantity: number, unitPrice: number): number {
+  return quantity * unitPrice;
+}
+
+/** Lube bay total expected sales */
+export function calcLubeBayTotalExpected(
+  lubricantAmount: number,
+  labourCharge: number,
+  partsCharge: number,
+  discount: number
+): number {
+  return lubricantAmount + labourCharge + partsCharge - discount;
+}
+
+/** Lube bay settlement variance */
+export function calcLubeBayVariance(
+  cashAmount: number,
+  cardAmount: number,
+  momoAmount: number,
+  creditorAmount: number,
+  totalExpected: number
+): number {
+  return cashAmount + cardAmount + momoAmount + creditorAmount - totalExpected;
+}
+
 /** Net cash position for the station day (legacy, to be replaced by full reconciliation) */
 export function calcNetCashPosition(
   cashBanked: number,
