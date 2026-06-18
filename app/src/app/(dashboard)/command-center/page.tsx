@@ -17,7 +17,7 @@ export default async function CommandCenterPage({
   if (!stationId) {
     return (
       <>
-        <PageTitle eyebrow="Command Center" title="Global Dashboard" />
+        <PageTitle eyebrow="Command Center" title="Station Dashboard" />
         <div className="dash-panel">
           <div style={{ padding: "2rem", textAlign: "center", color: "var(--ax-muted)" }}>
             No stations available for this account.
@@ -36,7 +36,7 @@ export default async function CommandCenterPage({
   if (!station) {
     return (
       <>
-        <PageTitle eyebrow="Command Center" title="Global Dashboard" />
+        <PageTitle eyebrow="Command Center" title="Station Dashboard" />
         <div className="dash-panel">
           <div style={{ padding: "2rem", textAlign: "center", color: "var(--ax-muted)" }}>
             Station not found.

@@ -89,7 +89,7 @@ export const NAV_CONFIG: NavGroup[] = [
         access: { OWNER: "full", ADMIN: "full", ACCOUNTANT: "view", AUDITOR: "view" },
       },
       {
-        label: "Global Dashboard",
+        label: "Station Dashboard",
         href: "/command-center",
         icon: "tachometer-alt",
         stationScoped: true,

@@ -127,12 +127,15 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
     return active?.id ?? null;
   }, [pathname, navGroups]);
 
-  // Open group is: the explicitly toggled one, or the route-active one if they match
+  // Open group is user-controlled. If persisted state belongs to another role,
+  // fall back to the active route/default group.
   const openGroupStillAvailable = navGroups.some((group) => group.id === openGroupId);
   const effectiveOpenId =
     navGroups.length === 1
       ? navGroups[0]?.id
-      : activeGroupId ?? (openGroupStillAvailable ? openGroupId : navGroups[0]?.id) ?? null;
+      : openGroupStillAvailable
+        ? openGroupId
+        : activeGroupId ?? navGroups[0]?.id ?? null;
 
   function toggleGroup(id: string) {
     setOpenGroupId((prev) => (prev === id ? null : id));
