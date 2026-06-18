@@ -99,6 +99,7 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
 
   // Persisted sidebar pin state
   const [isPinned, setIsPinned] = useLocalStorage(PIN_STORAGE_KEY, false);
+  const isSidebarExpanded = role === "SUPER_ADMIN" || isPinned;
 
   // Persisted open group — single-accordion, one open at a time
   // The empty dep array is intentional: this is a mount-time default only.
@@ -142,7 +143,7 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
   }
 
   return (
-    <aside className={`sidebar${isPinned ? " expanded" : ""}`}>
+    <aside className={`sidebar${isSidebarExpanded ? " expanded" : ""}`}>
       {/* Logo mark */}
       <div className="sidebar-logo" role="img" aria-label="FuelStation OS logo">
         <Image
@@ -210,12 +211,13 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
 
       {/* Pin toggle */}
       <button
-        className={`sidebar-pin${isPinned ? " pinned" : ""}`}
+        className={`sidebar-pin${isSidebarExpanded ? " pinned" : ""}`}
         onClick={togglePin}
-        title={isPinned ? "Unpin sidebar" : "Pin sidebar open"}
-        aria-label={isPinned ? "Unpin sidebar" : "Pin sidebar open"}
+        title={isSidebarExpanded ? "Unpin sidebar" : "Pin sidebar open"}
+        aria-label={isSidebarExpanded ? "Unpin sidebar" : "Pin sidebar open"}
+        disabled={role === "SUPER_ADMIN"}
       >
-        {isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+        {isSidebarExpanded ? <PinOff size={14} /> : <Pin size={14} />}
       </button>
     </aside>
   );
