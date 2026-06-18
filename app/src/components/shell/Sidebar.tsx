@@ -76,6 +76,11 @@ function ItemIcon({ name }: { name: string }) {
   return <Icon size={14} />;
 }
 
+function isItemActive(pathname: string, href: string) {
+  if (pathname === href) return true;
+  return href !== "/platform" && pathname.startsWith(href + "/");
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 const NAV_STORAGE_KEY = "fuelstation_nav_open";
 const PIN_STORAGE_KEY = "fuelstation_sidebar_pinned";
@@ -100,7 +105,7 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
   // useLocalStorage will take over from here and ignore subsequent changes.
   const defaultOpen = useMemo(() => {
     const active = navGroups.find((g) =>
-      g.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
+      g.items.some((item) => isItemActive(pathname, item.href))
     );
     return active?.id ?? navGroups[0]?.id ?? null;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -115,14 +120,18 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
   // Derive active group from pathname on each render — no effect needed
   const activeGroupId = useMemo(() => {
     const active = navGroups.find((g) =>
-      g.items.some((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
+      g.items.some((item) => isItemActive(pathname, item.href))
     );
     // If the active group differs from openGroupId, auto-expand it
     return active?.id ?? null;
   }, [pathname, navGroups]);
 
   // Open group is: the explicitly toggled one, or the route-active one if they match
-  const effectiveOpenId = openGroupId ?? activeGroupId;
+  const openGroupStillAvailable = navGroups.some((group) => group.id === openGroupId);
+  const effectiveOpenId =
+    navGroups.length === 1
+      ? navGroups[0]?.id
+      : activeGroupId ?? (openGroupStillAvailable ? openGroupId : navGroups[0]?.id) ?? null;
 
   function toggleGroup(id: string) {
     setOpenGroupId((prev) => (prev === id ? null : id));
@@ -177,8 +186,7 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
               </div>
               <ul className="nav-group-items">
                 {group.items.map((item) => {
-                  const isActive =
-                    pathname === item.href || pathname.startsWith(item.href + "/");
+                  const isActive = isItemActive(pathname, item.href);
                   
                   // Append stationId if item is stationScoped
                   const hrefWithStation = withStationParam(item.href, currentStationId, item.stationScoped);
