@@ -329,7 +329,8 @@ export async function createTenantAction(formData: FormData): Promise<ActionResp
       return { id: tenant.id };
     });
 
-    revalidatePath("/platform/tenants");
+    revalidatePath("/platform");
+    revalidatePath("/platform/subscriptions");
     return { success: true, data: result };
   } catch (error) {
     return errorResponse(error);

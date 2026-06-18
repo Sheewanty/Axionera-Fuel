@@ -85,7 +85,7 @@ export default function CommandCenterClient({
     <>
       <PageTitle
         eyebrow="Command Center"
-        title="Station Dashboard"
+        title="Global Dashboard"
         subtitle={`${stationName} | ${businessDate} | Status: ${dailySessionStatus?.replace(/_/g, " ") ?? "No session open"}`}
         actions={
           <button className="btn btn-primary" onClick={handleOpenNewDay} disabled={isPending}>

@@ -11,6 +11,7 @@ type TenantRow = {
   name: string;
   slug: string;
   billingEmail: string | null;
+  billingAddress: string | null;
   subscriptionStatus: string;
   subscriptionPackage: string;
   maxStations: number;
@@ -26,6 +27,13 @@ type ActionResponse = {
   success: boolean;
   error?: string;
   fieldErrors?: Record<string, string[]>;
+};
+
+const packageDefaults: Record<string, { maxStations: number; maxTanks: number; maxPumps: number }> = {
+  STARTER: { maxStations: 1, maxTanks: 3, maxPumps: 3 },
+  GROWTH: { maxStations: 3, maxTanks: 12, maxPumps: 12 },
+  PRO: { maxStations: 10, maxTanks: 40, maxPumps: 40 },
+  ENTERPRISE: { maxStations: 50, maxTanks: 200, maxPumps: 200 },
 };
 
 function FieldErrors({ result }: { result: ActionResponse | null }) {
@@ -56,18 +64,17 @@ function FieldErrors({ result }: { result: ActionResponse | null }) {
   );
 }
 
-function statusClass(status: string): string {
-  if (status === "ACTIVE") return "status-badge";
-  if (status === "TRIAL") return "status-badge";
-  return "status-badge";
-}
+function setPackageDefaults(form: HTMLFormElement | null, packageName: string) {
+  const defaults = packageDefaults[packageName];
+  if (!form || !defaults) return;
 
-const packageDefaults: Record<string, { maxStations: number; maxTanks: number; maxPumps: number }> = {
-  STARTER: { maxStations: 1, maxTanks: 3, maxPumps: 3 },
-  GROWTH: { maxStations: 3, maxTanks: 12, maxPumps: 12 },
-  PRO: { maxStations: 10, maxTanks: 40, maxPumps: 40 },
-  ENTERPRISE: { maxStations: 50, maxTanks: 200, maxPumps: 200 },
-};
+  const stations = form.elements.namedItem("maxStations") as HTMLInputElement | null;
+  const tanks = form.elements.namedItem("maxTanks") as HTMLInputElement | null;
+  const pumps = form.elements.namedItem("maxPumps") as HTMLInputElement | null;
+  if (stations) stations.value = String(defaults.maxStations);
+  if (tanks) tanks.value = String(defaults.maxTanks);
+  if (pumps) pumps.value = String(defaults.maxPumps);
+}
 
 export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[] }) {
   const router = useRouter();
@@ -75,19 +82,6 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
   const [editTenant, setEditTenant] = useState<TenantRow | null>(null);
   const [result, setResult] = useState<ActionResponse | null>(null);
   const [pending, startTransition] = useTransition();
-
-  const handlePackageDefaults = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const defaults = packageDefaults[event.target.value];
-    if (!defaults) return;
-    const form = event.currentTarget.form;
-    if (!form) return;
-    const stations = form.elements.namedItem("maxStations") as HTMLInputElement | null;
-    const tanks = form.elements.namedItem("maxTanks") as HTMLInputElement | null;
-    const pumps = form.elements.namedItem("maxPumps") as HTMLInputElement | null;
-    if (stations) stations.value = String(defaults.maxStations);
-    if (tanks) tanks.value = String(defaults.maxTanks);
-    if (pumps) pumps.value = String(defaults.maxPumps);
-  };
 
   const submitCreate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -129,24 +123,25 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
           }}
         >
           <Plus size={14} />
-          Create Company / Tenant
+          Create Tenant
         </button>
       </div>
 
       <div className="dash-panel">
         <div className="dash-panel-head">
-          <div className="dash-panel-title">Tenant Register</div>
+          <div className="dash-panel-title">Subscription Register</div>
         </div>
         <div className="table-wrapper">
           <table className="data-table">
             <thead>
               <tr>
-                <th>Company</th>
+                <th>Tenant</th>
+                <th>Billing</th>
                 <th>Status</th>
                 <th>Package</th>
-                <th>Usage</th>
-                <th>Limits</th>
-                <th>Members</th>
+                <th>Current Usage</th>
+                <th>Allowed Limits</th>
+                <th>Users</th>
                 <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
@@ -156,12 +151,21 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
                   <td>
                     <div style={{ fontWeight: 800 }}>{tenant.name}</div>
                     <div style={{ color: "var(--ax-muted)", fontSize: 12 }}>{tenant.slug}</div>
-                    <div style={{ color: "var(--ax-muted)", fontSize: 12 }}>{tenant.billingEmail ?? "No billing email"}</div>
                   </td>
-                  <td><span className={statusClass(tenant.subscriptionStatus)} data-status={tenant.subscriptionStatus}>{tenant.subscriptionStatus}</span></td>
+                  <td>
+                    <div>{tenant.billingEmail ?? "-"}</div>
+                    <div style={{ color: "var(--ax-muted)", fontSize: 12 }}>
+                      {tenant.billingAddress ?? "No billing address"}
+                    </div>
+                  </td>
+                  <td>
+                    <span className="status-badge" data-status={tenant.subscriptionStatus}>
+                      {tenant.subscriptionStatus}
+                    </span>
+                  </td>
                   <td>{tenant.subscriptionPackage}</td>
-                  <td>{tenant.stationCount} stations · {tenant.tankCount} tanks · {tenant.pumpCount} pumps</td>
-                  <td>{tenant.maxStations} stations · {tenant.maxTanks} tanks · {tenant.maxPumps} pumps</td>
+                  <td>{tenant.stationCount} stations / {tenant.tankCount} tanks / {tenant.pumpCount} pumps</td>
+                  <td>{tenant.maxStations} stations / {tenant.maxTanks} tanks / {tenant.maxPumps} pumps</td>
                   <td>{tenant.memberCount}</td>
                   <td style={{ textAlign: "right" }}>
                     <button
@@ -178,7 +182,7 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
               ))}
               {tenants.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: 28, color: "var(--ax-muted)" }}>
+                  <td colSpan={8} style={{ textAlign: "center", padding: 28, color: "var(--ax-muted)" }}>
                     No tenants have been created.
                   </td>
                 </tr>
@@ -190,7 +194,7 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
 
       <Modal
         open={createOpen}
-        title="Create Company / Tenant"
+        title="Create Tenant"
         onClose={() => setCreateOpen(false)}
         size="lg"
         footer={
@@ -206,7 +210,7 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
         <form id="platform-create-tenant-form" onSubmit={submitCreate}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
             <label className="form-group">
-              <span className="form-label">Company Name *</span>
+              <span className="form-label">Tenant Name *</span>
               <input className="form-input" name="companyName" required />
             </label>
             <label className="form-group">
@@ -216,6 +220,10 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
             <label className="form-group">
               <span className="form-label">Billing Email</span>
               <input className="form-input" name="billingEmail" type="email" />
+            </label>
+            <label className="form-group" style={{ gridColumn: "1/-1" }}>
+              <span className="form-label">Billing Address</span>
+              <textarea className="form-textarea" name="billingAddress" rows={2} />
             </label>
             <label className="form-group">
               <span className="form-label">Status</span>
@@ -228,7 +236,12 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
             </label>
             <label className="form-group">
               <span className="form-label">Package</span>
-              <select className="form-select" name="subscriptionPackage" defaultValue="STARTER" onChange={handlePackageDefaults}>
+              <select
+                className="form-select"
+                name="subscriptionPackage"
+                defaultValue="STARTER"
+                onChange={(event) => setPackageDefaults(event.currentTarget.form, event.currentTarget.value)}
+              >
                 <option value="STARTER">Starter</option>
                 <option value="GROWTH">Growth</option>
                 <option value="PRO">Pro</option>
@@ -236,15 +249,15 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
               </select>
             </label>
             <label className="form-group">
-              <span className="form-label">Max Stations</span>
+              <span className="form-label">No. of Stations</span>
               <input className="form-input" name="maxStations" type="number" min="1" defaultValue={1} required />
             </label>
             <label className="form-group">
-              <span className="form-label">Max Tanks</span>
+              <span className="form-label">No. of Tanks</span>
               <input className="form-input" name="maxTanks" type="number" min="1" defaultValue={3} required />
             </label>
             <label className="form-group">
-              <span className="form-label">Max Pumps</span>
+              <span className="form-label">No. of Pumps</span>
               <input className="form-input" name="maxPumps" type="number" min="1" defaultValue={3} required />
             </label>
             <label className="form-group">
@@ -277,7 +290,7 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
 
       <Modal
         open={Boolean(editTenant)}
-        title="Manage Tenant"
+        title="Manage Subscription"
         onClose={() => setEditTenant(null)}
         size="lg"
         footer={
@@ -295,8 +308,16 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
             <input type="hidden" name="tenantId" value={editTenant.id} />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
               <label className="form-group">
-                <span className="form-label">Company</span>
-                <input className="form-input" value={editTenant.name} readOnly />
+                <span className="form-label">Tenant Name</span>
+                <input className="form-input" name="name" defaultValue={editTenant.name} required />
+              </label>
+              <label className="form-group">
+                <span className="form-label">Billing Email</span>
+                <input className="form-input" name="billingEmail" type="email" defaultValue={editTenant.billingEmail ?? ""} />
+              </label>
+              <label className="form-group" style={{ gridColumn: "1/-1" }}>
+                <span className="form-label">Billing Address</span>
+                <textarea className="form-textarea" name="billingAddress" rows={2} defaultValue={editTenant.billingAddress ?? ""} />
               </label>
               <label className="form-group">
                 <span className="form-label">Status</span>
@@ -309,7 +330,12 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
               </label>
               <label className="form-group">
                 <span className="form-label">Package</span>
-                <select className="form-select" name="subscriptionPackage" defaultValue={editTenant.subscriptionPackage} onChange={handlePackageDefaults}>
+                <select
+                  className="form-select"
+                  name="subscriptionPackage"
+                  defaultValue={editTenant.subscriptionPackage}
+                  onChange={(event) => setPackageDefaults(event.currentTarget.form, event.currentTarget.value)}
+                >
                   <option value="STARTER">Starter</option>
                   <option value="GROWTH">Growth</option>
                   <option value="PRO">Pro</option>
@@ -317,15 +343,15 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
                 </select>
               </label>
               <label className="form-group">
-                <span className="form-label">Max Stations</span>
+                <span className="form-label">No. of Stations</span>
                 <input className="form-input" name="maxStations" type="number" min="1" defaultValue={editTenant.maxStations} required />
               </label>
               <label className="form-group">
-                <span className="form-label">Max Tanks</span>
+                <span className="form-label">No. of Tanks</span>
                 <input className="form-input" name="maxTanks" type="number" min="1" defaultValue={editTenant.maxTanks} required />
               </label>
               <label className="form-group">
-                <span className="form-label">Max Pumps</span>
+                <span className="form-label">No. of Pumps</span>
                 <input className="form-input" name="maxPumps" type="number" min="1" defaultValue={editTenant.maxPumps} required />
               </label>
             </div>

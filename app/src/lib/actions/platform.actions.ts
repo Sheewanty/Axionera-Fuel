@@ -21,6 +21,7 @@ const platformTenantSchema = z.object({
   companyName: z.string().trim().min(2, "Company name is required"),
   slug: z.string().trim().min(2, "Slug is required").max(50, "Slug is too long").optional().or(z.literal("")),
   billingEmail: z.string().trim().email("Billing email must be valid").optional().or(z.literal("")),
+  billingAddress: z.string().trim().optional().or(z.literal("")),
   subscriptionStatus: subscriptionStatusSchema.default("TRIAL"),
   subscriptionPackage: subscriptionPackageSchema.default("STARTER"),
   maxStations: z.coerce.number().int().min(1, "At least one station is required").max(999),
@@ -44,6 +45,9 @@ const platformTenantSchema = z.object({
 
 const platformTenantUpdateSchema = z.object({
   tenantId: z.string().min(1, "Tenant is required"),
+  name: z.string().trim().min(2, "Tenant name is required"),
+  billingEmail: z.string().trim().email("Billing email must be valid").optional().or(z.literal("")),
+  billingAddress: z.string().trim().optional().or(z.literal("")),
   subscriptionStatus: subscriptionStatusSchema,
   subscriptionPackage: subscriptionPackageSchema,
   maxStations: z.coerce.number().int().min(1).max(999),
@@ -111,6 +115,7 @@ export async function createPlatformTenantAction(formData: FormData): Promise<Ac
           name: data.companyName,
           slug,
           billingEmail: data.billingEmail || data.ownerEmail,
+          billingAddress: data.billingAddress || null,
           subscriptionStatus: data.subscriptionStatus,
           subscriptionPackage: data.subscriptionPackage,
           maxStations: data.maxStations,
@@ -165,6 +170,8 @@ export async function createPlatformTenantAction(formData: FormData): Promise<Ac
             name: tenant.name,
             slug: tenant.slug,
             ownerEmail: owner.email,
+            billingEmail: tenant.billingEmail,
+            billingAddress: tenant.billingAddress,
             subscriptionStatus: tenant.subscriptionStatus,
             subscriptionPackage: tenant.subscriptionPackage,
             maxStations: tenant.maxStations,
@@ -179,7 +186,8 @@ export async function createPlatformTenantAction(formData: FormData): Promise<Ac
       return { id: tenant.id };
     });
 
-    revalidatePath("/platform/tenants");
+    revalidatePath("/platform");
+    revalidatePath("/platform/subscriptions");
     return { success: true, data: result };
   } catch (error) {
     return errorResponse(error);
@@ -203,6 +211,9 @@ export async function updatePlatformTenantAction(formData: FormData): Promise<Ac
         where: { id: data.tenantId },
         data: {
           subscriptionStatus: data.subscriptionStatus,
+          name: data.name,
+          billingEmail: data.billingEmail || null,
+          billingAddress: data.billingAddress || null,
           subscriptionPackage: data.subscriptionPackage,
           maxStations: data.maxStations,
           maxTanks: data.maxTanks,
@@ -220,6 +231,9 @@ export async function updatePlatformTenantAction(formData: FormData): Promise<Ac
           action: "UPDATE",
           before: {
             subscriptionStatus: before.subscriptionStatus,
+            name: before.name,
+            billingEmail: before.billingEmail,
+            billingAddress: before.billingAddress,
             subscriptionPackage: before.subscriptionPackage,
             maxStations: before.maxStations,
             maxTanks: before.maxTanks,
@@ -227,6 +241,9 @@ export async function updatePlatformTenantAction(formData: FormData): Promise<Ac
           },
           after: {
             subscriptionStatus: tenant.subscriptionStatus,
+            name: tenant.name,
+            billingEmail: tenant.billingEmail,
+            billingAddress: tenant.billingAddress,
             subscriptionPackage: tenant.subscriptionPackage,
             maxStations: tenant.maxStations,
             maxTanks: tenant.maxTanks,
@@ -239,7 +256,8 @@ export async function updatePlatformTenantAction(formData: FormData): Promise<Ac
       return { id: tenant.id };
     });
 
-    revalidatePath("/platform/tenants");
+    revalidatePath("/platform");
+    revalidatePath("/platform/subscriptions");
     return { success: true, data: result };
   } catch (error) {
     return errorResponse(error);

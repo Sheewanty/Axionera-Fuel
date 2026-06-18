@@ -61,9 +61,16 @@ export const NAV_CONFIG: NavGroup[] = [
     icon: "shield-halved",
     items: [
       {
-        label: "Companies",
-        href: "/platform/tenants",
-        icon: "building",
+        label: "Global Dashboard",
+        href: "/platform",
+        icon: "chart-pie",
+        stationScoped: false,
+        access: { SUPER_ADMIN: "full" },
+      },
+      {
+        label: "Subscriptions",
+        href: "/platform/subscriptions",
+        icon: "credit-card",
         stationScoped: false,
         access: { SUPER_ADMIN: "full" },
       },
@@ -82,7 +89,7 @@ export const NAV_CONFIG: NavGroup[] = [
         access: { OWNER: "full", ADMIN: "full", ACCOUNTANT: "view", AUDITOR: "view" },
       },
       {
-        label: "Station Dashboard",
+        label: "Global Dashboard",
         href: "/command-center",
         icon: "tachometer-alt",
         stationScoped: true,

@@ -24,6 +24,7 @@ model Tenant {
   maxTanks            Int      @default(3)
   maxPumps            Int      @default(3)
   billingEmail        String?
+  billingAddress      String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

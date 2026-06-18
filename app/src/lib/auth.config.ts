@@ -21,7 +21,7 @@ export const authConfig: NextAuthConfig = {
       const isSuperAdmin = auth?.user?.role === "SUPER_ADMIN";
 
       if (isLoggedIn && isLoginPage) {
-        return Response.redirect(new URL(isSuperAdmin ? "/platform/tenants" : "/command-center", nextUrl));
+        return Response.redirect(new URL(isSuperAdmin ? "/platform" : "/command-center", nextUrl));
       }
 
       if (!isLoggedIn && !isLoginPage) {
@@ -29,7 +29,7 @@ export const authConfig: NextAuthConfig = {
       }
 
       if (isLoggedIn && !isLoginPage && isSuperAdmin && !isPlatformRoute) {
-        return Response.redirect(new URL("/platform/tenants", nextUrl));
+        return Response.redirect(new URL("/platform", nextUrl));
       }
 
       if (isLoggedIn && !isLoginPage && !isSuperAdmin && isPlatformRoute) {
