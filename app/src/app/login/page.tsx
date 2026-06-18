@@ -46,7 +46,7 @@ async function handleLogin(formData: FormData) {
     await signIn("credentials", {
       email,
       password,
-      redirectTo: "/command-center",
+      redirectTo: "/post-login",
     });
   } catch (error) {
     // Re-throw anything that is NOT an AuthError.

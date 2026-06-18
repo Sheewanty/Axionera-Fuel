@@ -7,6 +7,7 @@
  * platform super admins at the route boundary.
  */
 import type { NextAuthConfig } from "next-auth";
+import "@/lib/auth.types";
 
 export const authConfig: NextAuthConfig = {
   pages: {
@@ -37,6 +38,19 @@ export const authConfig: NextAuthConfig = {
       }
 
       return true;
+    },
+
+    jwt({ token }) {
+      return token;
+    },
+
+    session({ session, token }) {
+      session.user.id = token.userId as string;
+      session.user.tenantId = token.tenantId as string;
+      session.user.role = token.role as string;
+      session.user.membershipStationId = token.membershipStationId as string;
+      session.user.activeStationId = token.activeStationId as string | null;
+      return session;
     },
   },
 
