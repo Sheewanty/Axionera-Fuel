@@ -8,6 +8,8 @@ import { withMutation } from "@/lib/mutation";
 import type { Db } from "@/lib/db/types";
 import { getRequiredSession, requireSuperAdmin, type AuthSession } from "@/lib/session";
 import { writeAuditLog } from "@/lib/db/audit.service";
+import { saveLubeBayServiceType } from "@/lib/db/lube-bay.service";
+import { lubeBayServiceTypeSchema } from "@/lib/schemas/lube-bay.schema";
 
 type ActionResponse = {
   success: boolean;
@@ -496,6 +498,39 @@ export async function setProductPriceAction(formData: FormData): Promise<ActionR
   try {
     const result = await mutation();
     revalidatePath("/setup/products");
+    return { success: true, data: result };
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function saveLubeBayServiceTypeAction(formData: FormData): Promise<ActionResponse> {
+  const parsed = parseForm(lubeBayServiceTypeSchema, formData);
+  if (!parsed.success) return validationError(parsed.error);
+  const data = parsed.data;
+
+  const mutation = withMutation(
+    {
+      entityType: "LubeBayServiceType",
+      action: data.id ? "UPDATE" : "CREATE",
+      getStationId: () => data.stationId,
+      getEntityId: (result: { id: string }) => result.id,
+      roles: [...WRITE_ROLES],
+    },
+    async (session: AuthSession, tx: Db) => {
+      const serviceType = await saveLubeBayServiceType(tx, {
+        ...data,
+        tenantId: session.user.tenantId,
+        userId: session.user.id,
+      });
+      return { id: serviceType.id };
+    }
+  );
+
+  try {
+    const result = await mutation();
+    revalidatePath("/setup/lube-bay");
+    revalidatePath("/lube-bay/sales");
     return { success: true, data: result };
   } catch (error) {
     return errorResponse(error);

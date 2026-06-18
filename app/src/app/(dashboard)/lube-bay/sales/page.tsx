@@ -1,6 +1,6 @@
 import PageTitle from "@/components/ui/PageTitle";
 import { prisma } from "@/lib/db/prisma";
-import { getRequiredSession, requireWriteAccess } from "@/lib/session";
+import { getRequiredSession, requireRole, requireStationScope } from "@/lib/session";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
 import { currentBusinessDate, formatDisplayDate } from "@/lib/business-date";
 import LubeBaySalesClient from "./LubeBaySalesClient";
@@ -11,6 +11,7 @@ export default async function LubeBaySalesPage({
   searchParams: Promise<{ stationId?: string }>;
 }) {
   const session = await getRequiredSession();
+  requireRole(session, ["OWNER", "ADMIN", "STATION_MANAGER", "SUPERVISOR", "ATTENDANT", "ACCOUNTANT", "AUDITOR"]);
   const params = await searchParams;
   const targetStationId = await resolveOrRedirectStation(session, params.stationId, "/lube-bay/sales");
 
@@ -25,7 +26,7 @@ export default async function LubeBaySalesPage({
     );
   }
 
-  await requireWriteAccess(session, { targetStationId });
+  requireStationScope(session, targetStationId);
 
   const station = await prisma.station.findFirst({
     where: { id: targetStationId, tenantId: session.user.tenantId },
@@ -44,16 +45,16 @@ export default async function LubeBaySalesPage({
     },
   });
 
-  const [products, creditors, sales] = await Promise.all([
+  const [products, creditors, serviceTypes, sales] = await Promise.all([
     prisma.product.findMany({
       where: {
         tenantId: session.user.tenantId,
-        category: "LUBRICANT",
+        category: { in: ["LUBRICANT", "OTHER"] },
         isActive: true,
       },
       include: {
         priceHistory: {
-          where: { stationId: targetStationId },
+          where: { tenantId: session.user.tenantId, stationId: targetStationId, effectiveTo: null },
           orderBy: { effectiveFrom: "desc" },
           take: 1,
         },
@@ -68,12 +69,26 @@ export default async function LubeBaySalesPage({
       },
       orderBy: { name: "asc" },
     }),
+    prisma.lubeBayServiceType.findMany({
+      where: {
+        tenantId: session.user.tenantId,
+        isActive: true,
+        OR: [{ stationId: targetStationId }, { stationId: null }],
+      },
+      orderBy: [{ name: "asc" }, { vehicleCategory: "asc" }],
+    }),
     dailySession
       ? prisma.lubeBaySale.findMany({
           where: {
             tenantId: session.user.tenantId,
             stationId: targetStationId,
             dailySessionId: dailySession.id,
+          },
+          include: {
+            lines: {
+              include: { product: true },
+              orderBy: { createdAt: "asc" },
+            },
           },
           orderBy: { createdAt: "desc" },
         })
@@ -107,22 +122,33 @@ export default async function LubeBaySalesPage({
           name: product.name,
           price: Number(product.priceHistory[0]?.pricePerLitre ?? 0),
         }))}
+        serviceTypes={serviceTypes.map((serviceType) => ({
+          id: serviceType.id,
+          name: serviceType.name,
+          vehicleCategory: serviceType.vehicleCategory,
+          defaultLabourCharge: Number(serviceType.defaultLabourCharge),
+        }))}
         creditors={creditors.map((creditor) => ({
           id: creditor.id,
           name: creditor.name,
         }))}
+        supervisorName={session.user.name ?? ""}
         sales={sales.map((sale) => ({
           id: sale.id,
           vehicleReg: sale.vehicleReg,
           customerName: sale.customerName,
           customerPhone: sale.customerPhone,
+          serviceTypeId: sale.serviceTypeId,
           serviceType: sale.serviceType,
-          lubricantProductId: sale.lubricantProductId,
-          quantity: Number(sale.quantity),
-          unitPrice: Number(sale.unitPrice),
-          lubricantAmount: Number(sale.lubricantAmount),
+          vehicleCategory: sale.vehicleCategory,
+          lines: sale.lines.map((line) => ({
+            productId: line.productId,
+            productName: line.product.name,
+            quantity: Number(line.quantity),
+            unitPrice: Number(line.unitPrice),
+            amount: Number(line.amount),
+          })),
           labourCharge: Number(sale.labourCharge),
-          partsCharge: Number(sale.partsCharge),
           discount: Number(sale.discount),
           totalExpected: Number(sale.totalExpected),
           cashAmount: Number(sale.cashAmount),
@@ -130,6 +156,10 @@ export default async function LubeBaySalesPage({
           momoAmount: Number(sale.momoAmount),
           creditorAmount: Number(sale.creditorAmount),
           creditorId: sale.creditorId,
+          paymentMode: sale.paymentMode,
+          momoOperator: sale.momoOperator,
+          momoNumber: sale.momoNumber,
+          cardDetails: sale.cardDetails,
           variance: Number(sale.variance),
           technicianName: sale.technicianName,
           supervisorName: sale.supervisorName,

@@ -291,6 +291,13 @@ export const NAV_CONFIG: NavGroup[] = [
         stationScoped: false,
         access: { OWNER: "full", ADMIN: "full", AUDITOR: "view" },
       },
+      {
+        label: "Lube Bay Setup",
+        href: "/setup/lube-bay",
+        icon: "screwdriver-wrench",
+        stationScoped: true,
+        access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "limited", AUDITOR: "view" },
+      },
     ],
   },
   {

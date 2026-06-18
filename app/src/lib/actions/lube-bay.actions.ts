@@ -52,6 +52,7 @@ export async function createLubeBaySaleAction(input: CreateLubeBaySaleInput): Pr
         ...parsed.data,
         tenantId: session.user.tenantId,
         createdBy: session.user.id,
+        supervisorName: session.user.name ?? null,
       });
 
       return { id: sale.id };
@@ -92,6 +93,7 @@ export async function updateLubeBaySaleAction(input: UpdateLubeBaySaleInput): Pr
         ...parsed.data,
         tenantId: session.user.tenantId,
         updatedBy: session.user.id,
+        supervisorName: session.user.name ?? null,
       });
 
       return { id: sale.id };

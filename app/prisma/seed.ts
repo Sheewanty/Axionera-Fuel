@@ -149,6 +149,21 @@ async function main() {
     update: {},
     create: { id: "prod-lube-gear-oil", tenantId: tenant.id, name: "GOIL Gear Oil", category: "LUBRICANT" },
   });
+  const oilFilter = await prisma.product.upsert({
+    where: { id: "prod-lube-oil-filter" },
+    update: {},
+    create: { id: "prod-lube-oil-filter", tenantId: tenant.id, name: "Oil Filter", category: "OTHER" },
+  });
+  const airFilter = await prisma.product.upsert({
+    where: { id: "prod-lube-air-filter" },
+    update: {},
+    create: { id: "prod-lube-air-filter", tenantId: tenant.id, name: "Air Filter", category: "OTHER" },
+  });
+  const brakePads = await prisma.product.upsert({
+    where: { id: "prod-lube-brake-pads" },
+    update: {},
+    create: { id: "prod-lube-brake-pads", tenantId: tenant.id, name: "Brake Pads", category: "OTHER" },
+  });
   console.log("✓  Products: Super 91 | Super 95 | Diesel");
 
   // ── Ghana pump prices (GHS/L — approximate GOIL posted prices) ────────────
@@ -163,6 +178,9 @@ async function main() {
       { tenantId: tenant.id, stationId: stationAccra.id, productId: engineOil5w30.id, pricePerLitre: 95.00, effectiveFrom: businessDate, createdBy: "seed" },
       { tenantId: tenant.id, stationId: stationAccra.id, productId: engineOil15w40.id, pricePerLitre: 85.00, effectiveFrom: businessDate, createdBy: "seed" },
       { tenantId: tenant.id, stationId: stationAccra.id, productId: gearOil.id, pricePerLitre: 78.00, effectiveFrom: businessDate, createdBy: "seed" },
+      { tenantId: tenant.id, stationId: stationAccra.id, productId: oilFilter.id, pricePerLitre: 45.00, effectiveFrom: businessDate, createdBy: "seed" },
+      { tenantId: tenant.id, stationId: stationAccra.id, productId: airFilter.id, pricePerLitre: 55.00, effectiveFrom: businessDate, createdBy: "seed" },
+      { tenantId: tenant.id, stationId: stationAccra.id, productId: brakePads.id, pricePerLitre: 180.00, effectiveFrom: businessDate, createdBy: "seed" },
     ],
   });
   console.log("✓  Price history (GHS/L): Super 91 = 14.89 | Super 95 = 15.31 | Diesel = 14.45");
@@ -268,6 +286,36 @@ async function main() {
   await upsertMembership(tenant.id, userSupervisor.id, "SUPERVISOR", stationAccra.id);
   await upsertMembership(tenant.id, userAttendant.id, "ATTENDANT", stationAccra.id);
   console.log("✓  Memberships assigned");
+
+  const lubeVehicleCategories = [
+    "Motorcycles & Tricycles",
+    "Heavy Duty & Commercial Trucks",
+    "Light Commercial Vehicles",
+    "SUV and Crossovers",
+    "Salon and Sedans",
+  ];
+  const lubeServiceDefaults = [
+    { name: "Oil Change", labour: 35 },
+    { name: "Oil Top-up", labour: 20 },
+    { name: "Filter Change", labour: 25 },
+    { name: "Brake Pad Replacement", labour: 80 },
+  ];
+
+  await prisma.lubeBayServiceType.createMany({
+    skipDuplicates: true,
+    data: lubeServiceDefaults.flatMap((service) =>
+      lubeVehicleCategories.map((vehicleCategory) => ({
+        tenantId: tenant.id,
+        stationId: stationAccra.id,
+        name: service.name,
+        vehicleCategory,
+        defaultLabourCharge:
+          vehicleCategory === "Heavy Duty & Commercial Trucks" ? service.labour * 2 : service.labour,
+        createdBy: userAdmin.id,
+      }))
+    ),
+  });
+  console.log("✓  Lube bay service types seeded");
 
   // ── Daily Session (today, Accra Central, Day shift) ───────────────────────
   const session = await prisma.dailySession.upsert({

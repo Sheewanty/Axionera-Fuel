@@ -1,11 +1,7 @@
 import type { LubeBaySale } from "@prisma/client";
 import type { Db } from "./types";
-import type { CreateLubeBaySaleInput, UpdateLubeBaySaleInput } from "../schemas/lube-bay.schema";
-import {
-  calcLubeBayLubricantAmount,
-  calcLubeBayTotalExpected,
-  calcLubeBayVariance,
-} from "../calculations";
+import type { CreateLubeBaySaleInput, UpdateLubeBaySaleInput, LubeBayServiceTypeInput } from "../schemas/lube-bay.schema";
+import { calcLubeBayTotalExpected, calcLubeBayVariance } from "../calculations";
 import { appendCorrectionNote } from "../corrections";
 
 const LOCKED_SESSION_STATUSES = new Set(["READY_FOR_REVIEW", "APPROVED"]);
@@ -15,86 +11,99 @@ type TenantScopedInput = {
 };
 
 async function getWritableSession(db: Db, tenantId: string, stationId: string, dailySessionId: string) {
-  const session = await db.dailySession.findUnique({
-    where: { id: dailySessionId },
-  });
-
+  const session = await db.dailySession.findUnique({ where: { id: dailySessionId } });
   if (!session || session.tenantId !== tenantId || session.stationId !== stationId) {
     throw new Error("Daily session not found or mismatch");
   }
-
   if (LOCKED_SESSION_STATUSES.has(session.status)) {
     throw new Error(`Cannot modify lube bay sales for a session that is ${session.status}`);
   }
-
   return session;
 }
 
-async function validateReferences(db: Db, input: TenantScopedInput & CreateLubeBaySaleInput) {
-  if (input.lubricantProductId) {
-    const product = await db.product.findFirst({
-      where: {
-        id: input.lubricantProductId,
-        tenantId: input.tenantId,
-        category: "LUBRICANT",
-        isActive: true,
-      },
-      select: { id: true },
-    });
-
-    if (!product) {
-      throw new Error("Selected lubricant product is not active or does not belong to this tenant");
-    }
-  }
-
-  if (input.creditorId) {
-    const creditor = await db.creditor.findFirst({
-      where: {
-        id: input.creditorId,
-        tenantId: input.tenantId,
-        stationId: input.stationId,
-        status: "ACTIVE",
-      },
-      select: { id: true },
-    });
-
-    if (!creditor) {
-      throw new Error("Selected creditor is not active or does not belong to this station");
-    }
-  }
+async function getServiceType(db: Db, tenantId: string, stationId: string, serviceTypeId: string) {
+  const serviceType = await db.lubeBayServiceType.findFirst({
+    where: {
+      id: serviceTypeId,
+      tenantId,
+      isActive: true,
+      OR: [{ stationId }, { stationId: null }],
+    },
+  });
+  if (!serviceType) throw new Error("Selected service type is not active or does not belong to this station");
+  return serviceType;
 }
 
-function computedValues(input: CreateLubeBaySaleInput) {
-  const lubricantAmount = calcLubeBayLubricantAmount(input.quantity, input.unitPrice);
-  const totalExpected = calcLubeBayTotalExpected(
-    lubricantAmount,
-    input.labourCharge,
-    input.partsCharge,
-    input.discount
-  );
-  const variance = calcLubeBayVariance(
-    input.cashAmount,
-    input.cardAmount,
-    input.momoAmount,
-    input.creditorAmount,
-    totalExpected
-  );
+async function getLineData(db: Db, input: TenantScopedInput & Pick<CreateLubeBaySaleInput, "stationId" | "lines">) {
+  const lines = [];
+  for (const line of input.lines) {
+    const product = await db.product.findFirst({
+      where: {
+        id: line.productId,
+        tenantId: input.tenantId,
+        isActive: true,
+        category: { in: ["LUBRICANT", "OTHER"] },
+      },
+      include: {
+        priceHistory: {
+          where: { tenantId: input.tenantId, stationId: input.stationId, effectiveTo: null },
+          orderBy: { effectiveFrom: "desc" },
+          take: 1,
+        },
+      },
+    });
+    if (!product) throw new Error("Selected product is not active or does not belong to this tenant");
 
-  if (totalExpected < 0) {
-    throw new Error("Discount cannot exceed lubricant, labour, and parts charges");
+    const price = Number(product.priceHistory[0]?.pricePerLitre ?? 0);
+    if (price <= 0) throw new Error(`No active price found for ${product.name}`);
+    lines.push({
+      productId: product.id,
+      quantity: line.quantity,
+      unitPrice: price,
+      amount: line.quantity * price,
+    });
   }
+  return lines;
+}
 
-  return { lubricantAmount, totalExpected, variance };
+async function validateCreditor(db: Db, input: TenantScopedInput & Pick<CreateLubeBaySaleInput, "stationId" | "creditorId" | "paymentMode">) {
+  if (input.paymentMode !== "CREDIT") return;
+  const creditor = await db.creditor.findFirst({
+    where: {
+      id: input.creditorId,
+      tenantId: input.tenantId,
+      stationId: input.stationId,
+      status: "ACTIVE",
+    },
+    select: { id: true },
+  });
+  if (!creditor) throw new Error("Selected creditor is not active or does not belong to this station");
+}
+
+function paymentAmounts(input: CreateLubeBaySaleInput, totalExpected: number) {
+  return {
+    cashAmount: input.paymentMode === "CASH" ? totalExpected : 0,
+    cardAmount: input.paymentMode === "CARD" ? totalExpected : 0,
+    momoAmount: input.paymentMode === "MOMO" ? totalExpected : 0,
+    creditorAmount: input.paymentMode === "CREDIT" ? totalExpected : 0,
+  };
 }
 
 export type CreateLubeBaySaleServiceInput = CreateLubeBaySaleInput & TenantScopedInput & {
   createdBy: string;
+  supervisorName?: string | null;
 };
 
 export async function createLubeBaySale(db: Db, input: CreateLubeBaySaleServiceInput): Promise<LubeBaySale> {
   const session = await getWritableSession(db, input.tenantId, input.stationId, input.dailySessionId);
-  await validateReferences(db, input);
-  const computed = computedValues(input);
+  const serviceType = await getServiceType(db, input.tenantId, input.stationId, input.serviceTypeId);
+  await validateCreditor(db, input);
+  const lineData = await getLineData(db, input);
+  const productTotal = lineData.reduce((sum, line) => sum + line.amount, 0);
+  const totalExpected = calcLubeBayTotalExpected(productTotal, input.labourCharge, 0, input.discount);
+  if (totalExpected < 0) throw new Error("Discount cannot exceed product and labour charges");
+  const amounts = paymentAmounts(input, totalExpected);
+  const variance = calcLubeBayVariance(amounts.cashAmount, amounts.cardAmount, amounts.momoAmount, amounts.creditorAmount, totalExpected);
 
   const sale = await db.lubeBaySale.create({
     data: {
@@ -105,29 +114,32 @@ export async function createLubeBaySale(db: Db, input: CreateLubeBaySaleServiceI
       vehicleReg: input.vehicleReg.trim().toUpperCase(),
       customerName: input.customerName,
       customerPhone: input.customerPhone,
-      serviceType: input.serviceType,
-      lubricantProductId: input.lubricantProductId,
-      quantity: input.quantity,
-      unitPrice: input.unitPrice,
-      lubricantAmount: computed.lubricantAmount,
+      serviceTypeId: serviceType.id,
+      serviceType: serviceType.name,
+      vehicleCategory: input.vehicleCategory,
+      lubricantAmount: productTotal,
       labourCharge: input.labourCharge,
-      partsCharge: input.partsCharge,
+      partsCharge: 0,
       discount: input.discount,
-      totalExpected: computed.totalExpected,
-      cashAmount: input.cashAmount,
-      cardAmount: input.cardAmount,
-      momoAmount: input.momoAmount,
-      creditorAmount: input.creditorAmount,
-      creditorId: input.creditorId,
-      variance: computed.variance,
+      totalExpected,
+      ...amounts,
+      creditorId: input.paymentMode === "CREDIT" ? input.creditorId : null,
+      paymentMode: input.paymentMode,
+      momoOperator: input.paymentMode === "MOMO" ? input.momoOperator : null,
+      momoNumber: input.paymentMode === "MOMO" ? input.momoNumber : null,
+      cardDetails: input.paymentMode === "CARD" ? input.cardDetails : null,
+      variance,
       technicianName: input.technicianName,
       supervisorName: input.supervisorName,
       remarks: input.remarks,
       createdBy: input.createdBy,
+      lines: {
+        create: lineData.map((line) => ({ tenantId: input.tenantId, ...line })),
+      },
     },
   });
 
-  if (input.creditorId && input.creditorAmount > 0) {
+  if (input.paymentMode === "CREDIT" && input.creditorId) {
     await db.creditorLedgerEntry.create({
       data: {
         tenantId: input.tenantId,
@@ -136,8 +148,7 @@ export async function createLubeBaySale(db: Db, input: CreateLubeBaySaleServiceI
         creditorId: input.creditorId,
         businessDate: session.businessDate,
         type: "SALE",
-        amount: input.creditorAmount,
-        productId: input.lubricantProductId,
+        amount: totalExpected,
         lubeBaySaleId: sale.id,
         remarks: `Lube bay sale for ${sale.vehicleReg}`,
         createdBy: input.createdBy,
@@ -150,25 +161,27 @@ export async function createLubeBaySale(db: Db, input: CreateLubeBaySaleServiceI
 
 export type UpdateLubeBaySaleServiceInput = UpdateLubeBaySaleInput & TenantScopedInput & {
   updatedBy: string;
+  supervisorName?: string | null;
 };
 
 export async function updateLubeBaySale(db: Db, input: UpdateLubeBaySaleServiceInput): Promise<LubeBaySale> {
-  const existing = await db.lubeBaySale.findUnique({
-    where: { id: input.id },
-  });
-
-  if (
-    !existing ||
-    existing.tenantId !== input.tenantId ||
-    existing.stationId !== input.stationId ||
-    existing.dailySessionId !== input.dailySessionId
-  ) {
+  const existing = await db.lubeBaySale.findUnique({ where: { id: input.id } });
+  if (!existing || existing.tenantId !== input.tenantId || existing.stationId !== input.stationId || existing.dailySessionId !== input.dailySessionId) {
     throw new Error("Lube bay sale not found or mismatch");
   }
 
   await getWritableSession(db, input.tenantId, input.stationId, input.dailySessionId);
-  await validateReferences(db, input);
-  const computed = computedValues(input);
+  const serviceType = await getServiceType(db, input.tenantId, input.stationId, input.serviceTypeId);
+  await validateCreditor(db, input);
+  const lineData = await getLineData(db, input);
+  const productTotal = lineData.reduce((sum, line) => sum + line.amount, 0);
+  const totalExpected = calcLubeBayTotalExpected(productTotal, input.labourCharge, 0, input.discount);
+  if (totalExpected < 0) throw new Error("Discount cannot exceed product and labour charges");
+  const amounts = paymentAmounts(input, totalExpected);
+  const variance = calcLubeBayVariance(amounts.cashAmount, amounts.cardAmount, amounts.momoAmount, amounts.creditorAmount, totalExpected);
+
+  await db.lubeBaySaleLine.deleteMany({ where: { tenantId: input.tenantId, saleId: input.id } });
+  await db.creditorLedgerEntry.deleteMany({ where: { tenantId: input.tenantId, lubeBaySaleId: input.id } });
 
   const sale = await db.lubeBaySale.update({
     where: { id: input.id },
@@ -176,36 +189,35 @@ export async function updateLubeBaySale(db: Db, input: UpdateLubeBaySaleServiceI
       vehicleReg: input.vehicleReg.trim().toUpperCase(),
       customerName: input.customerName,
       customerPhone: input.customerPhone,
-      serviceType: input.serviceType,
-      lubricantProductId: input.lubricantProductId,
-      quantity: input.quantity,
-      unitPrice: input.unitPrice,
-      lubricantAmount: computed.lubricantAmount,
+      serviceTypeId: serviceType.id,
+      serviceType: serviceType.name,
+      vehicleCategory: input.vehicleCategory,
+      lubricantProductId: null,
+      quantity: 0,
+      unitPrice: 0,
+      lubricantAmount: productTotal,
       labourCharge: input.labourCharge,
-      partsCharge: input.partsCharge,
+      partsCharge: 0,
       discount: input.discount,
-      totalExpected: computed.totalExpected,
-      cashAmount: input.cashAmount,
-      cardAmount: input.cardAmount,
-      momoAmount: input.momoAmount,
-      creditorAmount: input.creditorAmount,
-      creditorId: input.creditorId,
-      variance: computed.variance,
+      totalExpected,
+      ...amounts,
+      creditorId: input.paymentMode === "CREDIT" ? input.creditorId : null,
+      paymentMode: input.paymentMode,
+      momoOperator: input.paymentMode === "MOMO" ? input.momoOperator : null,
+      momoNumber: input.paymentMode === "MOMO" ? input.momoNumber : null,
+      cardDetails: input.paymentMode === "CARD" ? input.cardDetails : null,
+      variance,
       technicianName: input.technicianName,
       supervisorName: input.supervisorName,
       remarks: appendCorrectionNote(input.remarks ?? existing.remarks, input.correctionReason),
       updatedBy: input.updatedBy,
+      lines: {
+        create: lineData.map((line) => ({ tenantId: input.tenantId, ...line })),
+      },
     },
   });
 
-  await db.creditorLedgerEntry.deleteMany({
-    where: {
-      tenantId: input.tenantId,
-      lubeBaySaleId: input.id,
-    },
-  });
-
-  if (input.creditorId && input.creditorAmount > 0) {
+  if (input.paymentMode === "CREDIT" && input.creditorId) {
     await db.creditorLedgerEntry.create({
       data: {
         tenantId: input.tenantId,
@@ -214,8 +226,7 @@ export async function updateLubeBaySale(db: Db, input: UpdateLubeBaySaleServiceI
         creditorId: input.creditorId,
         businessDate: existing.businessDate,
         type: "SALE",
-        amount: input.creditorAmount,
-        productId: input.lubricantProductId,
+        amount: totalExpected,
         lubeBaySaleId: input.id,
         remarks: `Lube bay correction for ${sale.vehicleReg}`,
         createdBy: input.updatedBy,
@@ -224,4 +235,47 @@ export async function updateLubeBaySale(db: Db, input: UpdateLubeBaySaleServiceI
   }
 
   return sale;
+}
+
+export type SaveLubeBayServiceTypeInput = LubeBayServiceTypeInput & TenantScopedInput & {
+  userId: string;
+};
+
+export async function saveLubeBayServiceType(db: Db, input: SaveLubeBayServiceTypeInput) {
+  if (input.stationId) {
+    const station = await db.station.findFirst({ where: { id: input.stationId, tenantId: input.tenantId } });
+    if (!station) throw new Error("Station was not found for this company");
+  }
+
+  if (input.id) {
+    const existing = await db.lubeBayServiceType.findFirst({
+      where: { id: input.id, tenantId: input.tenantId },
+      select: { id: true },
+    });
+    if (!existing) throw new Error("Service type was not found for this company");
+
+    return db.lubeBayServiceType.update({
+      where: { id: input.id },
+      data: {
+        name: input.name,
+        stationId: input.stationId,
+        vehicleCategory: input.vehicleCategory,
+        defaultLabourCharge: input.defaultLabourCharge,
+        isActive: input.isActive,
+        updatedBy: input.userId,
+      },
+    });
+  }
+
+  return db.lubeBayServiceType.create({
+    data: {
+      tenantId: input.tenantId,
+      stationId: input.stationId,
+      name: input.name,
+      vehicleCategory: input.vehicleCategory,
+      defaultLabourCharge: input.defaultLabourCharge,
+      isActive: input.isActive,
+      createdBy: input.userId,
+    },
+  });
 }
