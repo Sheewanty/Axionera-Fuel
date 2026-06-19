@@ -25,7 +25,7 @@ const optionalNumber = z.preprocess(
 
 const createCreditorSchema = z.object({
   stationId: z.string().min(1, "Station is required"),
-  name: z.string().trim().min(1, "Creditor name is required"),
+  name: z.string().trim().min(1, "Debtor name is required"),
   phone: optionalText,
   email: optionalText,
   creditLimit: optionalNumber,
@@ -35,7 +35,7 @@ const createCreditorSchema = z.object({
 const creditorLedgerSchema = z.object({
   stationId: z.string().min(1, "Station is required"),
   dailySessionId: z.string().min(1, "Daily session is required"),
-  creditorId: z.string().min(1, "Creditor is required"),
+  creditorId: z.string().min(1, "Debtor is required"),
   type: z.enum(["SALE", "PAYMENT"]),
   amount: z.coerce.number().finite("Amount must be valid").positive("Amount must be greater than zero"),
   productId: optionalText,
@@ -133,6 +133,7 @@ export async function createCreditorAction(formData: FormData): Promise<ActionRe
   try {
     const result = await mutation();
     revalidatePath("/cash/creditors");
+    revalidatePath("/setup/debtors");
     return { success: true, data: result };
   } catch (error) {
     return errorResponse(error);
@@ -172,7 +173,7 @@ export async function createCreditorLedgerEntryAction(formData: FormData): Promi
           status: "ACTIVE",
         },
       });
-      if (!creditor) throw new Error("Active creditor was not found for this station");
+      if (!creditor) throw new Error("Active debtor was not found for this station");
 
       if (parsed.data.productId) {
         const product = await tx.product.findFirst({
@@ -213,6 +214,7 @@ export async function createCreditorLedgerEntryAction(formData: FormData): Promi
   try {
     const result = await mutation();
     revalidatePath("/cash/creditors");
+    revalidatePath("/setup/debtors");
     revalidatePath("/forecourt/cash-entries");
     revalidatePath("/daily-close");
     return { success: true, data: result };

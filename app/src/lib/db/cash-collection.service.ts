@@ -48,17 +48,30 @@ export async function createCashCollection(
   const totalCreditorPayments = await getTotalCreditorPayments(tenantId, input.dailySessionId, db);
   const totalCashReceived = totalPumpCashReceived + totalCreditorPayments;
 
-  // Calculate net expenditure for this session
+  // Expenditure is now recorded as the actual spent amount only.
   const expenditures = await db.expenditure.findMany({
     where: {
       tenantId,
       dailySessionId: input.dailySessionId,
     },
-    select: { amount: true, paymentToBank: true },
+    select: { amount: true },
   });
-  const totalNetExpenditure = expenditures.reduce((sum, exp) => {
-    return sum + (Number(exp.amount) - Number(exp.paymentToBank));
-  }, 0);
+  const totalNetExpenditure = expenditures.reduce((sum, exp) => sum + Number(exp.amount), 0);
+
+  const duplicate = await db.cashCollection.findFirst({
+    where: {
+      tenantId,
+      stationId: input.stationId,
+      dailySessionId: input.dailySessionId,
+      amountToBank: input.amountToBank,
+      bankCollectionDate: input.bankCollectionDate ? new Date(input.bankCollectionDate) : null,
+      bankCollectionReference: input.bankCollectionReference || null,
+    },
+    select: { id: true },
+  });
+  if (duplicate) {
+    throw new Error("This cash collection appears to have already been recorded.");
+  }
 
   // Fetch previous cash collections for this session to compute remaining expected cash
   const previousCollections = await db.cashCollection.findMany({
@@ -131,11 +144,25 @@ export async function correctCashCollection(
 
   const expenditures = await db.expenditure.findMany({
     where: { tenantId, dailySessionId: input.dailySessionId },
-    select: { amount: true, paymentToBank: true },
+    select: { amount: true },
   });
-  const totalNetExpenditure = expenditures.reduce((sum, exp) => {
-    return sum + (Number(exp.amount) - Number(exp.paymentToBank));
-  }, 0);
+  const totalNetExpenditure = expenditures.reduce((sum, exp) => sum + Number(exp.amount), 0);
+
+  const duplicate = await db.cashCollection.findFirst({
+    where: {
+      tenantId,
+      stationId: input.stationId,
+      dailySessionId: input.dailySessionId,
+      id: { not: input.id },
+      amountToBank: input.amountToBank,
+      bankCollectionDate: input.bankCollectionDate ? new Date(input.bankCollectionDate) : null,
+      bankCollectionReference: input.bankCollectionReference || null,
+    },
+    select: { id: true },
+  });
+  if (duplicate) {
+    throw new Error("This cash collection appears to duplicate an existing record.");
+  }
 
   const otherCollections = await db.cashCollection.findMany({
     where: {

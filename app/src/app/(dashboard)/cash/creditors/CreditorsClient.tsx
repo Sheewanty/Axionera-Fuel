@@ -34,6 +34,7 @@ type Entry = {
 };
 
 type Props = {
+  mode: "setup" | "transactions";
   stationId: string;
   dailySessionId: string | null;
   sessionWritable: boolean;
@@ -44,8 +45,8 @@ type Props = {
 
 function fieldLabel(field: string): string {
   const labels: Record<string, string> = {
-    name: "Creditor name",
-    creditorId: "Creditor",
+    name: "Debtor name",
+    creditorId: "Debtor",
     paymentMethod: "Payment method",
     chequeNumber: "Cheque number",
     chequeName: "Cheque name",
@@ -85,6 +86,7 @@ function ErrorBlock({
 
 export default function CreditorsClient({
   stationId,
+  mode,
   dailySessionId,
   sessionWritable,
   creditors,
@@ -115,7 +117,7 @@ export default function CreditorsClient({
       resetErrors();
       const response = await createCreditorAction(formData);
       if (!response.success) {
-        setError(response.error ?? "Unable to save creditor");
+        setError(response.error ?? "Unable to save debtor");
         setFieldErrors(response.fieldErrors ?? {});
         return;
       }
@@ -128,7 +130,7 @@ export default function CreditorsClient({
   const handleEntrySubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!dailySessionId) {
-      setError("Open a daily session before recording creditor entries.");
+      setError("Open a daily session before recording debtor entries.");
       return;
     }
 
@@ -141,7 +143,7 @@ export default function CreditorsClient({
       resetErrors();
       const response = await createCreditorLedgerEntryAction(formData);
       if (!response.success) {
-        setError(response.error ?? "Unable to save creditor entry");
+        setError(response.error ?? "Unable to save debtor entry");
         setFieldErrors(response.fieldErrors ?? {});
         return;
       }
@@ -166,25 +168,29 @@ export default function CreditorsClient({
   return (
     <div className="mt-6 space-y-6">
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-        <button className="btn btn-primary" onClick={openRegister}>
-          <Plus size={14} />
-          Add Creditor
-        </button>
-        <button className="btn btn-primary" onClick={openEntry} disabled={!sessionWritable || creditors.length === 0}>
-          <Plus size={14} />
-          Record Credit Sale / Payment
-        </button>
+        {mode === "setup" && (
+          <button type="button" className="btn btn-primary" onClick={openRegister}>
+            <Plus size={14} />
+            Add Debtor
+          </button>
+        )}
+        {mode === "transactions" && (
+          <button type="button" className="btn btn-primary" onClick={openEntry} disabled={!sessionWritable || creditors.length === 0}>
+            <Plus size={14} />
+            Record Credit Sale / Payment
+          </button>
+        )}
       </div>
 
-      {!dailySessionId && (
+      {mode === "transactions" && !dailySessionId && (
         <div className="dash-panel" style={{ padding: 16, color: "var(--ax-muted)" }}>
-          Open today&apos;s session before recording creditor sales or payments.
+          Open today&apos;s session before recording debtor sales or payments.
         </div>
       )}
 
       <div className="dash-panel">
         <div className="dash-panel-head">
-          <div className="dash-panel-title">Registered Creditors</div>
+          <div className="dash-panel-title">Registered Debtors</div>
         </div>
         <div className="table-wrapper">
           <table className="data-table">
@@ -201,7 +207,7 @@ export default function CreditorsClient({
               {creditors.length === 0 ? (
                 <tr>
                   <td colSpan={5} style={{ textAlign: "center", padding: 28, color: "var(--ax-muted)" }}>
-                    No creditors registered for this station.
+                    No debtors registered for this station.
                   </td>
                 </tr>
               ) : (
@@ -223,16 +229,17 @@ export default function CreditorsClient({
         </div>
       </div>
 
+      {mode === "transactions" && (
       <div className="dash-panel">
         <div className="dash-panel-head">
-          <div className="dash-panel-title">Today&apos;s Creditor Entries</div>
+          <div className="dash-panel-title">Today&apos;s Debtor Entries</div>
         </div>
         <div className="table-wrapper">
           <table className="data-table">
             <thead>
               <tr>
                 <th>Time</th>
-                <th>Creditor</th>
+                <th>Debtor</th>
                 <th>Type</th>
                 <th>Method / Product</th>
                 <th>Reference</th>
@@ -243,7 +250,7 @@ export default function CreditorsClient({
               {entries.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ textAlign: "center", padding: 28, color: "var(--ax-muted)" }}>
-                    No creditor sales or payments recorded for this session.
+                    No debtor sales or payments recorded for this session.
                   </td>
                 </tr>
               ) : (
@@ -262,17 +269,18 @@ export default function CreditorsClient({
           </table>
         </div>
       </div>
+      )}
 
       <Modal
         open={registerOpen}
-        title="Add Creditor"
+        title="Add Debtor"
         onClose={() => setRegisterOpen(false)}
         size="lg"
         footer={
           <>
-            <button className="btn btn-outline" onClick={() => setRegisterOpen(false)} disabled={isPending}>Cancel</button>
+            <button type="button" className="btn btn-outline" onClick={() => setRegisterOpen(false)} disabled={isPending}>Cancel</button>
             <button className="btn btn-primary" type="submit" form="creditor-form" disabled={isPending}>
-              {isPending ? "Saving..." : "Save Creditor"}
+              {isPending ? "Saving..." : "Save Debtor"}
             </button>
           </>
         }
@@ -281,7 +289,7 @@ export default function CreditorsClient({
         <form id="creditor-form" onSubmit={handleCreditorSubmit}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <label className="form-group">
-              <span className="form-label">Creditor Name *</span>
+              <span className="form-label">Debtor Name *</span>
               <input className="form-input" name="name" required />
             </label>
             <label className="form-group">
@@ -311,7 +319,7 @@ export default function CreditorsClient({
         size="lg"
         footer={
           <>
-            <button className="btn btn-outline" onClick={() => setEntryOpen(false)} disabled={isPending}>Cancel</button>
+            <button type="button" className="btn btn-outline" onClick={() => setEntryOpen(false)} disabled={isPending}>Cancel</button>
             <button className="btn btn-primary" type="submit" form="creditor-entry-form" disabled={isPending}>
               {isPending ? "Saving..." : "Save Entry"}
             </button>
@@ -322,9 +330,9 @@ export default function CreditorsClient({
         <form id="creditor-entry-form" onSubmit={handleEntrySubmit}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <label className="form-group">
-              <span className="form-label">Creditor *</span>
+              <span className="form-label">Debtor *</span>
               <select className="form-select" name="creditorId" required defaultValue="">
-                <option value="">Select creditor</option>
+                <option value="">Select debtor</option>
                 {creditors.filter((creditor) => creditor.status === "ACTIVE").map((creditor) => (
                   <option key={creditor.id} value={creditor.id}>{creditor.name}</option>
                 ))}
@@ -340,7 +348,7 @@ export default function CreditorsClient({
                 required
               >
                 <option value="SALE">Credit sale</option>
-                <option value="PAYMENT">Creditor payment</option>
+                <option value="PAYMENT">Debtor payment</option>
               </select>
             </label>
             <label className="form-group">
@@ -415,7 +423,12 @@ export default function CreditorsClient({
                   <>
                     <label className="form-group">
                       <span className="form-label">MoMo Operator *</span>
-                      <input className="form-input" name="momoOperator" placeholder="MTN, Telecel, AT" required />
+                      <select className="form-select" name="momoOperator" required defaultValue="">
+                        <option value="">Select operator</option>
+                        <option value="MTN">MTN</option>
+                        <option value="Telecel">Telecel</option>
+                        <option value="AT">AT</option>
+                      </select>
                     </label>
                     <label className="form-group">
                       <span className="form-label">MoMo Number *</span>

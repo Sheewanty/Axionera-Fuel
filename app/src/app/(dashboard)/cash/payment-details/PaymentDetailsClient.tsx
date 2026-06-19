@@ -25,6 +25,16 @@ type Props = {
   stationId: string;
   dailySessionId: string;
   products: ProductOption[];
+  totals: {
+    goCardVisa: number;
+    coupons: number;
+    ghqrMomo: number;
+    debtorCreditSales: number;
+    debtorPaymentCash: number;
+    debtorPaymentCheque: number;
+    debtorPaymentCard: number;
+    debtorPaymentMomo: number;
+  };
   details: PaymentDetail[];
   sessionWritable: boolean;
 };
@@ -50,6 +60,7 @@ export default function PaymentDetailsClient({
   stationId,
   dailySessionId,
   products,
+  totals,
   details,
   sessionWritable,
 }: Props) {
@@ -91,6 +102,49 @@ export default function PaymentDetailsClient({
           </button>
         </div>
       )}
+
+      <div className="dash-grid cols-4" style={{ marginBottom: 20 }}>
+        <div className="dash-card">
+          <div className="dash-card-label">GO Card / Visa</div>
+          <div className="dash-card-value">{formatCurrency(totals.goCardVisa)}</div>
+        </div>
+        <div className="dash-card">
+          <div className="dash-card-label">Coupons</div>
+          <div className="dash-card-value">{formatCurrency(totals.coupons)}</div>
+        </div>
+        <div className="dash-card">
+          <div className="dash-card-label">GHQR / MoMo</div>
+          <div className="dash-card-value">{formatCurrency(totals.ghqrMomo)}</div>
+        </div>
+        <div className="dash-card">
+          <div className="dash-card-label">Debtor Credit Sales</div>
+          <div className="dash-card-value">{formatCurrency(totals.debtorCreditSales)}</div>
+        </div>
+      </div>
+
+      <div className="dash-panel" style={{ marginBottom: 20 }}>
+        <div className="dash-panel-head">
+          <div className="dash-panel-title">Debtor Payments Received</div>
+        </div>
+        <div className="dash-grid cols-4">
+          <div>
+            <div className="dash-card-label">Cash</div>
+            <div style={{ fontWeight: 800, color: "var(--ax-blue)" }}>{formatCurrency(totals.debtorPaymentCash)}</div>
+          </div>
+          <div>
+            <div className="dash-card-label">Cheque</div>
+            <div style={{ fontWeight: 800, color: "var(--ax-blue)" }}>{formatCurrency(totals.debtorPaymentCheque)}</div>
+          </div>
+          <div>
+            <div className="dash-card-label">Card</div>
+            <div style={{ fontWeight: 800, color: "var(--ax-blue)" }}>{formatCurrency(totals.debtorPaymentCard)}</div>
+          </div>
+          <div>
+            <div className="dash-card-label">MoMo</div>
+            <div style={{ fontWeight: 800, color: "var(--ax-blue)" }}>{formatCurrency(totals.debtorPaymentMomo)}</div>
+          </div>
+        </div>
+      </div>
 
       <div className="dash-panel">
         <div className="dash-panel-head">

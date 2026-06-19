@@ -17,7 +17,6 @@ import {
   calcTankVariance,
   calcMartNetSales,
   calcMartVariance,
-  calcNetExpenditure,
 } from "../src/lib/calculations";
 
 // ─── Dev-only guard ───────────────────────────────────────────────────────────
@@ -433,7 +432,7 @@ async function main() {
   const expenditureDefs = [
     { category: "Generator Fuel", amount: 350, paymentToBank: 0, paidBy: userSupervisor.name, receiptAttached: true },
     { category: "Staff Meals", amount: 120, paymentToBank: 0, paidBy: userSupervisor.name, receiptAttached: false },
-    { category: "Contractor Payment", amount: 800, paymentToBank: 400, paidBy: userSupervisor.name, receiptAttached: true },
+    { category: "Contractor Payment", amount: 400, paymentToBank: 0, paidBy: userSupervisor.name, receiptAttached: true },
   ];
 
   for (const expense of expenditureDefs) {
@@ -452,10 +451,7 @@ async function main() {
       },
     });
   }
-  const totalNetExpenditure = expenditureDefs.reduce(
-    (sum, expense) => sum + calcNetExpenditure(expense.amount, expense.paymentToBank),
-    0
-  );
+  const totalNetExpenditure = expenditureDefs.reduce((sum, expense) => sum + expense.amount, 0);
   console.log("✓  Expenditures seeded (3 records)");
 
   // ── Cash collection ───────────────────────────────────────────────────────

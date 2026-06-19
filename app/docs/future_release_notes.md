@@ -57,3 +57,20 @@ Recommended future screens:
 - `Issue Imprest`
 - `Retire Imprest`
 - `Outstanding Imprest Report`
+
+## Debtor Naming and Database Cleanup
+
+Current decision:
+- The user-facing application should use `Debtor`, because these customers owe the filling station.
+- Keep existing database/model names such as `Creditor` and `CreditorLedgerEntry` unchanged until after e2e testing.
+- Debtor creation belongs under `Setup > Debtors`.
+- Credit sale and debtor payment posting belongs under `Cash & Banking > Credit Sales / Payments`.
+
+Reasoning:
+- Renaming database tables and Prisma models during active testing creates unnecessary migration risk.
+- The control separation is more urgent than internal naming: setup registers approved debtors, while daily cash operations only select from that approved list.
+
+Future implementation:
+- Rename domain models and tables from `Creditor` to `Debtor` after the live workflow stabilizes.
+- Add migration scripts with explicit data preservation and compatibility checks.
+- Update audit entity names, reports, and exported column labels during the same release.

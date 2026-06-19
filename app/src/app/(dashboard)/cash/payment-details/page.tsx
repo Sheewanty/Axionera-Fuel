@@ -48,7 +48,7 @@ export default async function PaymentDetailsPage({
     );
   }
 
-  const [products, details] = await Promise.all([
+  const [products, details, debtorEntries] = await Promise.all([
     prisma.product.findMany({
       where: { tenantId: session.user.tenantId, isActive: true },
       orderBy: { name: "asc" },
@@ -62,7 +62,46 @@ export default async function PaymentDetailsPage({
       },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.creditorLedgerEntry.findMany({
+      where: {
+        tenantId: session.user.tenantId,
+        stationId,
+        dailySessionId: dailySession.id,
+      },
+      select: {
+        type: true,
+        paymentMethod: true,
+        amount: true,
+      },
+    }),
   ]);
+
+  const paymentTotals = {
+    goCardVisa: details
+      .filter((detail) => detail.channel === "GO_CARD" || detail.channel === "VISA")
+      .reduce((sum, detail) => sum + Number(detail.amount), 0),
+    coupons: details
+      .filter((detail) => detail.channel === "GOIL_COUPON" || detail.channel === "YY_COUPON")
+      .reduce((sum, detail) => sum + Number(detail.amount), 0),
+    ghqrMomo: details
+      .filter((detail) => detail.channel === "GHQR")
+      .reduce((sum, detail) => sum + Number(detail.amount), 0),
+    debtorCreditSales: debtorEntries
+      .filter((entry) => entry.type === "SALE")
+      .reduce((sum, entry) => sum + Number(entry.amount), 0),
+    debtorPaymentCash: debtorEntries
+      .filter((entry) => entry.type === "PAYMENT" && entry.paymentMethod === "CASH")
+      .reduce((sum, entry) => sum + Number(entry.amount), 0),
+    debtorPaymentCheque: debtorEntries
+      .filter((entry) => entry.type === "PAYMENT" && entry.paymentMethod === "CHEQUE")
+      .reduce((sum, entry) => sum + Number(entry.amount), 0),
+    debtorPaymentCard: debtorEntries
+      .filter((entry) => entry.type === "PAYMENT" && entry.paymentMethod === "CARD")
+      .reduce((sum, entry) => sum + Number(entry.amount), 0),
+    debtorPaymentMomo: debtorEntries
+      .filter((entry) => entry.type === "PAYMENT" && entry.paymentMethod === "MOMO")
+      .reduce((sum, entry) => sum + Number(entry.amount), 0),
+  };
 
   return (
     <>
@@ -76,6 +115,7 @@ export default async function PaymentDetailsPage({
         stationId={stationId}
         dailySessionId={dailySession.id}
         products={products}
+        totals={paymentTotals}
         sessionWritable={dailySession.status === "OPEN" || dailySession.status === "REOPENED"}
         details={details.map((detail) => ({
           id: detail.id,

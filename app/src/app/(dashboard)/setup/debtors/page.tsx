@@ -1,23 +1,23 @@
 import PageTitle from "@/components/ui/PageTitle";
-import { prisma } from "@/lib/db/prisma";
 import { currentBusinessDate, formatDisplayDate } from "@/lib/business-date";
+import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-import CreditorsClient from "./CreditorsClient";
+import CreditorsClient from "../../cash/creditors/CreditorsClient";
 
-export default async function CreditorsPage({
+export default async function DebtorsSetupPage({
   searchParams,
 }: {
   searchParams: Promise<{ stationId?: string }>;
 }) {
   const session = await getRequiredSession();
   const params = await searchParams;
-  const stationId = await resolveOrRedirectStation(session, params.stationId, "/cash/creditors");
+  const stationId = await resolveOrRedirectStation(session, params.stationId, "/setup/debtors");
 
   if (!stationId) {
     return (
       <div className="p-6">
-        <PageTitle eyebrow="Cash & Banking" title="Credit Sales / Payments" />
+        <PageTitle eyebrow="Setup" title="Debtors" />
         <div className="dash-panel p-6">No stations available for this account.</div>
       </div>
     );
@@ -30,29 +30,26 @@ export default async function CreditorsPage({
   });
   if (!station) return <div>Station not found.</div>;
 
-  const dailySession = await prisma.dailySession.findFirst({
-    where: {
-      tenantId: session.user.tenantId,
-      stationId,
-      businessDate: currentBusinessDate(),
-      shift: "DAY",
-    },
-  });
-
-  const [creditors, products, ledgerEntries] = await Promise.all([
+  const [dailySession, creditors, ledgerEntries] = await Promise.all([
+    prisma.dailySession.findFirst({
+      where: {
+        tenantId: session.user.tenantId,
+        stationId,
+        businessDate: currentBusinessDate(),
+        shift: "DAY",
+      },
+    }),
     prisma.creditor.findMany({
       where: { tenantId: session.user.tenantId, stationId },
       orderBy: [{ status: "asc" }, { name: "asc" }],
     }),
-    prisma.product.findMany({
-      where: { tenantId: session.user.tenantId, isActive: true },
-      orderBy: { name: "asc" },
-    }),
     prisma.creditorLedgerEntry.findMany({
       where: { tenantId: session.user.tenantId, stationId },
-      include: { creditor: true, product: true },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      select: {
+        creditorId: true,
+        type: true,
+        amount: true,
+      },
     }),
   ]);
 
@@ -63,22 +60,19 @@ export default async function CreditorsPage({
     balances.set(entry.creditorId, current + signedAmount);
   }
 
-  const dayEntries = ledgerEntries.filter((entry) => entry.dailySessionId === dailySession?.id);
-  const sessionWritable = dailySession?.status === "OPEN" || dailySession?.status === "REOPENED";
-
   return (
     <>
       <PageTitle
-        eyebrow="Cash & Banking"
-        title="Credit Sales / Payments"
-        subtitle={`${station.name} · ${dailySession ? formatDisplayDate(dailySession.businessDate) : "No open day"}`}
+        eyebrow="Setup"
+        title="Debtors"
+        subtitle={`${station.name} - ${dailySession ? formatDisplayDate(dailySession.businessDate) : "No open day"}`}
       />
 
       <CreditorsClient
-        mode="transactions"
+        mode="setup"
         stationId={stationId}
         dailySessionId={dailySession?.id ?? null}
-        sessionWritable={Boolean(sessionWritable)}
+        sessionWritable
         creditors={creditors.map((creditor) => ({
           id: creditor.id,
           name: creditor.name,
@@ -88,17 +82,8 @@ export default async function CreditorsPage({
           status: creditor.status,
           balance: balances.get(creditor.id) ?? 0,
         }))}
-        products={products.map((product) => ({ id: product.id, name: product.name }))}
-        entries={dayEntries.map((entry) => ({
-          id: entry.id,
-          creditorName: entry.creditor.name,
-          productName: entry.product?.name ?? null,
-          type: entry.type,
-          paymentMethod: entry.paymentMethod,
-          amount: Number(entry.amount),
-          referenceNumber: entry.referenceNumber,
-          createdAt: formatDisplayDate(entry.createdAt),
-        }))}
+        products={[]}
+        entries={[]}
       />
     </>
   );

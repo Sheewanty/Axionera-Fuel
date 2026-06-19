@@ -33,13 +33,13 @@ describe("expenditure schema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects payment to bank greater than amount", () => {
+  it("accepts legacy payment to bank input for compatibility", () => {
     const result = createExpenditureSchema.safeParse({
       ...validPayload,
       amount: 100,
       paymentToBank: 101,
     });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
   });
 
   it("rejects infinity", () => {

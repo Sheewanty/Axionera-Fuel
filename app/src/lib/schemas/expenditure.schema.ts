@@ -37,15 +37,13 @@ export const createExpenditureSchema = z.object({
     "Select a valid expenditure category"
   ),
   amount: z.number().finite("Amount must be a valid number").positive("Amount must be greater than zero"),
+  // Kept for database/API compatibility during e2e testing. New expenditure flow stores 0.
   paymentToBank: finiteAmount("Payment to bank must be a non-negative number").default(0),
   paidBy: z.string().min(1, "Paid by is required"),
   voucherReference: optionalText,
   approvedBy: optionalText,
   receiptAttached: z.boolean().default(false),
   description: optionalText,
-}).refine((data) => data.paymentToBank <= data.amount, {
-  message: "Payment to bank cannot exceed expenditure amount",
-  path: ["paymentToBank"],
 });
 
 export const updateExpenditureSchema = createExpenditureSchema.extend({

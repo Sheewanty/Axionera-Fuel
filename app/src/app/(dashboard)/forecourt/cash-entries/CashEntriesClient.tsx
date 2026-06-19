@@ -58,7 +58,8 @@ export default function CashEntriesClient({
     setError(null);
     setIsSubmitting(true);
 
-    const formData = new FormData(e.currentTarget);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
     formData.append("stationId", station.id);
     formData.append("dailySessionId", dailySession.id);
     formData.append("businessDate", dailySession.businessDate);
@@ -73,6 +74,7 @@ export default function CashEntriesClient({
       if (!res.success) {
         setError(res.error + ": " + JSON.stringify(res.fieldErrors || {}));
       } else {
+        form.reset();
         setIsModalOpen(false);
         setCorrectionTarget(null);
         router.refresh();

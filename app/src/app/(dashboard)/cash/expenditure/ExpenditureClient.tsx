@@ -50,7 +50,6 @@ type FormState = {
   linkedToSession: boolean;
   category: string;
   amount: string;
-  paymentToBank: string;
   paidBy: string;
   voucherReference: string;
   approvedBy: string;
@@ -63,7 +62,6 @@ const blankForm: FormState = {
   linkedToSession: true,
   category: "",
   amount: "",
-  paymentToBank: "0",
   paidBy: "",
   voucherReference: "",
   approvedBy: "",
@@ -104,7 +102,7 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
     () =>
       expenditures
         .filter((expense) => expense.dailySessionId === dailySession?.id)
-        .reduce((sum, expense) => sum + expense.amount - expense.paymentToBank, 0),
+        .reduce((sum, expense) => sum + expense.amount, 0),
     [dailySession?.id, expenditures]
   );
 
@@ -123,7 +121,6 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
       linkedToSession: Boolean(expense.dailySessionId),
       category: expense.category,
       amount: String(expense.amount),
-      paymentToBank: String(expense.paymentToBank),
       paidBy: expense.paidBy,
       voucherReference: expense.voucherReference ?? "",
       approvedBy: expense.approvedBy ?? "",
@@ -153,7 +150,7 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
       dailySessionId: selectedDailySessionId,
       category: form.category,
       amount: Number(form.amount),
-      paymentToBank: Number(form.paymentToBank || 0),
+      paymentToBank: 0,
       paidBy: form.paidBy,
       voucherReference: form.voucherReference || undefined,
       approvedBy: form.approvedBy || undefined,
@@ -237,7 +234,7 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
           {formatCurrency(totalNetExpenditure)}
         </div>
         <div style={{ color: "var(--ax-slate-500)", fontSize: 14, marginTop: 4 }}>
-          Session-linked net expenditure for {dailySession ? `${station.name} | ${dailySession.businessDate} | ${dailySession.shift} Shift` : station.name}
+          Session-linked actual expenditure for {dailySession ? `${station.name} | ${dailySession.businessDate} | ${dailySession.shift} Shift` : station.name}
         </div>
       </div>
 
@@ -248,8 +245,6 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
               <th className="p-3 border-b">Scope</th>
               <th className="p-3 border-b">Category</th>
               <th className="p-3 border-b text-right">Amount</th>
-              <th className="p-3 border-b text-right">Paid to Bank</th>
-              <th className="p-3 border-b text-right">Net</th>
               <th className="p-3 border-b">Paid By</th>
               <th className="p-3 border-b">Receipt</th>
               <th className="p-3 border-b text-right">Actions</th>
@@ -258,7 +253,7 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
           <tbody>
             {expenditures.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ padding: 28, textAlign: "center", color: "var(--ax-slate-500)" }}>
+                <td colSpan={6} style={{ padding: 28, textAlign: "center", color: "var(--ax-slate-500)" }}>
                   No expenditures recorded for this station.
                 </td>
               </tr>
@@ -286,10 +281,6 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
                       <div style={{ fontSize: 12, color: "var(--ax-slate-500)" }}>{expense.voucherReference || expense.description || "-"}</div>
                     </td>
                     <td style={{ textAlign: "right" }}>{formatCurrency(expense.amount)}</td>
-                    <td style={{ textAlign: "right" }}>{formatCurrency(expense.paymentToBank)}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700 }}>
-                      {formatCurrency(expense.amount - expense.paymentToBank)}
-                    </td>
                     <td>{expense.paidBy}</td>
                     <td>{expense.receiptAttached ? "Attached" : "Missing"}</td>
                     <td>
@@ -397,17 +388,6 @@ export default function ExpenditureClient({ station, dailySession, expenditures 
                 step="0.01"
                 value={form.amount}
                 onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
-                className="form-input"
-              />
-            </label>
-            <label className="form-group">
-              <span className="form-label">Payment to Bank</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.paymentToBank}
-                onChange={(event) => setForm((current) => ({ ...current, paymentToBank: event.target.value }))}
                 className="form-input"
               />
             </label>

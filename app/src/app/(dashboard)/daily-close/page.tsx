@@ -108,9 +108,7 @@ export default async function DailyClosePage({
   const totalStockVariance = dailySession.tankDippings.reduce((sum, r) => sum + Number(r.varianceLitres), 0);
 
   // 3. Calculate Cash Totals
-  const totalNetExpenditure = dailySession.expenditures.reduce((sum, exp) => {
-    return sum + (Number(exp.amount) - Number(exp.paymentToBank));
-  }, 0);
+  const totalNetExpenditure = dailySession.expenditures.reduce((sum, exp) => sum + Number(exp.amount), 0);
   const totalMartNetSales = dailySession.martSales.reduce((sum, sale) => sum + Number(sale.netMartSales), 0);
   const totalMartCashVariance = dailySession.martSales.reduce((sum, sale) => sum + Number(sale.variance), 0);
   const expectedCash = calcPhysicalCashToBank(totalPumpCash, totalNetExpenditure);

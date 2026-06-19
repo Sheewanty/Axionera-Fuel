@@ -180,7 +180,7 @@ export const NAV_CONFIG: NavGroup[] = [
         access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "full", SUPERVISOR: "full", ACCOUNTANT: "entry", AUDITOR: "view" },
       },
       {
-        label: "Creditors",
+        label: "Credit Sales / Payments",
         href: "/cash/creditors",
         icon: "users",
         stationScoped: true,
@@ -283,6 +283,13 @@ export const NAV_CONFIG: NavGroup[] = [
         icon: "database",
         stationScoped: true,
         access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "limited", AUDITOR: "view" },
+      },
+      {
+        label: "Debtors",
+        href: "/setup/debtors",
+        icon: "users",
+        stationScoped: true,
+        access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "limited", ACCOUNTANT: "view", AUDITOR: "view" },
       },
       {
         label: "Lube Bay Setup",

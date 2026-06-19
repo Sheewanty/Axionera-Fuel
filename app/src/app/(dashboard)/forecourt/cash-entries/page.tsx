@@ -79,11 +79,9 @@ export default async function CashEntriesPage({
       tenantId: session.user.tenantId,
       dailySessionId: dailySession.id,
     },
-    select: { amount: true, paymentToBank: true },
+    select: { amount: true },
   });
-  const totalNetExpenditure = expenditures.reduce((sum, exp) => {
-    return sum + (Number(exp.amount) - Number(exp.paymentToBank));
-  }, 0);
+  const totalNetExpenditure = expenditures.reduce((sum, exp) => sum + Number(exp.amount), 0);
 
   const expectedCash = calcPhysicalCashToBank(totalCashReceived, totalNetExpenditure);
   

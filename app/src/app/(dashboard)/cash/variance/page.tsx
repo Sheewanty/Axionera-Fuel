@@ -55,7 +55,7 @@ export default async function CashVariancePage({
   const hqDirect = dailySession.pumpReadings.reduce((sum, r) => {
     return sum + Number(r.gocardAmount) + Number(r.couponAmount) + Number(r.ghqrAmount) + Number(r.creditorsAmount);
   }, 0);
-  const netExpenditure = dailySession.expenditures.reduce((sum, r) => sum + Number(r.amount) - Number(r.paymentToBank), 0);
+  const netExpenditure = dailySession.expenditures.reduce((sum, r) => sum + Number(r.amount), 0);
   const expectedCash = calcPhysicalCashToBank(pumpCash, netExpenditure);
   const totalBanked = dailySession.cashCollections.reduce((sum, r) => sum + Number(r.amountToBank), 0);
   const bankingVariance = totalBanked - expectedCash;
