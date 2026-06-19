@@ -80,7 +80,7 @@ const emptyForm: FormState = {
   customerPhone: "",
   serviceTypeId: "",
   vehicleCategory: "",
-  lines: [{ productId: "", quantity: "1" }],
+  lines: [],
   labourCharge: "0",
   discount: "0",
   paymentMode: "CASH",
@@ -175,7 +175,7 @@ export default function LubeBaySalesClient({ station, dailySession, products, cr
   const addLine = () => setForm((current) => ({ ...current, lines: [...current.lines, { productId: "", quantity: "1" }] }));
   const removeLine = (index: number) => setForm((current) => {
     const lines = current.lines.filter((_, lineIndex) => lineIndex !== index);
-    return { ...current, lines: lines.length > 0 ? lines : emptyForm.lines };
+    return { ...current, lines };
   });
 
   const selectServiceType = (serviceTypeId: string) => {
@@ -203,7 +203,7 @@ export default function LubeBaySalesClient({ station, dailySession, products, cr
       customerPhone: sale.customerPhone ?? "",
       serviceTypeId: sale.serviceTypeId ?? "",
       vehicleCategory: sale.vehicleCategory ?? "",
-      lines: sale.lines.length > 0 ? sale.lines.map((line) => ({ productId: line.productId, quantity: String(line.quantity) })) : [{ productId: "", quantity: "1" }],
+      lines: sale.lines.map((line) => ({ productId: line.productId, quantity: String(line.quantity) })),
       labourCharge: String(sale.labourCharge),
       discount: String(sale.discount),
       paymentMode: sale.paymentMode as FormState["paymentMode"],
@@ -334,6 +334,11 @@ export default function LubeBaySalesClient({ station, dailySession, products, cr
 
           <div className="dash-panel" style={{ marginTop: 12, padding: 14 }}>
             <div className="dash-panel-title" style={{ marginBottom: 12 }}>Products</div>
+            {form.lines.length === 0 && (
+              <div style={{ color: "var(--ax-muted)", fontSize: 13, marginBottom: 10 }}>
+                No products added. Use this for service-only jobs such as wheel rotation.
+              </div>
+            )}
             {form.lines.map((line, index) => {
               const preview = linePreview[index];
               return (
@@ -342,7 +347,7 @@ export default function LubeBaySalesClient({ station, dailySession, products, cr
                   <label className="form-group"><span className="form-label">Quantity</span><input className="form-input" type="number" min="0.01" step="0.01" value={line.quantity} onChange={(e) => setLine(index, "quantity", e.target.value)} required /></label>
                   <label className="form-group"><span className="form-label">Unit Price</span><input className="form-input computed" value={formatCurrency(preview?.unitPrice ?? 0)} readOnly /></label>
                   <label className="form-group"><span className="form-label">Amount</span><input className="form-input computed" value={formatCurrency(preview?.amount ?? 0)} readOnly /></label>
-                  <button type="button" className="btn btn-outline" onClick={() => removeLine(index)} disabled={form.lines.length === 1}><Trash2 size={14} /></button>
+                  <button type="button" className="btn btn-outline" onClick={() => removeLine(index)}><Trash2 size={14} /></button>
                 </div>
               );
             })}

@@ -43,7 +43,7 @@ export const createLubeBaySaleSchema = z.object({
   customerPhone: optionalText,
   serviceTypeId: z.string().min(1, "Service type is required"),
   vehicleCategory: lubeBayVehicleCategorySchema,
-  lines: z.array(lubeBayLineSchema).min(1, "Add at least one product line"),
+  lines: z.array(lubeBayLineSchema).default([]),
   labourCharge: nonNegativeAmount("Labour charge").default(0),
   discount: nonNegativeAmount("Discount").default(0),
   paymentMode: lubeBayPaymentModeSchema.default("CASH"),
