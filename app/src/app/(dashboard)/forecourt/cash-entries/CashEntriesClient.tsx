@@ -52,6 +52,7 @@ export default function CashEntriesClient({
   const [correctionTarget, setCorrectionTarget] = useState<CashCollectionProps | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const hasRemainingCash = currentExpectedCash > 0.005;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -89,10 +90,21 @@ export default function CashEntriesClient({
   return (
     <div className="space-y-6">
       <div style={{ marginBottom: "20px" }}>
-        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => setIsModalOpen(true)}
+          disabled={!hasRemainingCash}
+          title={!hasRemainingCash ? "No remaining expected cash is available. Correct existing entries first." : undefined}
+        >
           <Plus size={13} />
           Add Cash Entry
         </button>
+        {!hasRemainingCash && (
+          <div style={{ marginTop: 10, color: "var(--ax-red)", fontSize: 14 }}>
+            No remaining expected cash is available. Correct existing cash entries before adding another one.
+          </div>
+        )}
       </div>
 
       <div className="bg-white p-6 rounded shadow">
@@ -189,7 +201,7 @@ export default function CashEntriesClient({
             <button
               type="submit"
               form="cash-entry-form"
-              disabled={isSubmitting}
+              disabled={isSubmitting || (!correctionTarget && !hasRemainingCash)}
               className="btn btn-primary"
             >
               {isSubmitting ? "Saving..." : correctionTarget ? "Save Correction" : "Save Cash Entry"}

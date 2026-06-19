@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createCashCollection } from "../cash-collection.service";
+import { correctCashCollection, createCashCollection } from "../cash-collection.service";
 import { Db } from "../types";
 
 vi.mock("../audit.service", () => ({
@@ -40,7 +40,7 @@ describe("CashCollection Service", () => {
       stationId: "st_1",
       dailySessionId: "sess_1",
       businessDate: "2026-06-11",
-      amountToBank: 6000,
+      amountToBank: 5500,
     };
 
     const result = await createCashCollection("tenant_1", "user_1", input, mockDb as unknown as Db);
@@ -56,17 +56,103 @@ describe("CashCollection Service", () => {
     // previous banked = 1000
     // base expected cash = 8200 - 1500 = 6700
     // remaining expected = 6700 - 1000 = 5700
-    // amount to bank = 6000
-    // variance = 6000 - 5700 = +300
+    // amount to bank = 5500
+    // variance = 5500 - 5700 = -200
 
     expect(mockDb.cashCollection.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         tenantId: "tenant_1",
-        amountToBank: 6000,
+        amountToBank: 5500,
         expectedCash: 5700,
-        variance: 300,
+        variance: -200,
       }),
     });
+  });
+
+  it("rejects new cash collection above the remaining expected cash", async () => {
+    const mockDb = {
+      dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },
+      pumpReading: { findMany: vi.fn().mockResolvedValue([{ cashReceived: 1000 }]) },
+      creditorLedgerEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      expenditure: { findMany: vi.fn().mockResolvedValue([]) },
+      cashCollection: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([{ amountToBank: 900 }]),
+        create: vi.fn(),
+      },
+    };
+
+    const input = {
+      stationId: "st_1",
+      dailySessionId: "sess_1",
+      businessDate: "2026-06-11",
+      amountToBank: 200,
+    };
+
+    await expect(createCashCollection("tenant_1", "user_1", input, mockDb as unknown as Db))
+      .rejects.toThrow("cannot exceed the remaining expected cash");
+    expect(mockDb.cashCollection.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects new cash collection when remaining expected cash is exhausted", async () => {
+    const mockDb = {
+      dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },
+      pumpReading: { findMany: vi.fn().mockResolvedValue([{ cashReceived: 1000 }]) },
+      creditorLedgerEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      expenditure: { findMany: vi.fn().mockResolvedValue([]) },
+      cashCollection: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([{ amountToBank: 1200 }]),
+        create: vi.fn(),
+      },
+    };
+
+    const input = {
+      stationId: "st_1",
+      dailySessionId: "sess_1",
+      businessDate: "2026-06-11",
+      amountToBank: 1,
+    };
+
+    await expect(createCashCollection("tenant_1", "user_1", input, mockDb as unknown as Db))
+      .rejects.toThrow("No remaining expected cash");
+    expect(mockDb.cashCollection.create).not.toHaveBeenCalled();
+  });
+
+  it("allows reducing an existing overbanked cash collection during correction", async () => {
+    const mockDb = {
+      dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1", status: "OPEN" }) },
+      pumpReading: { findMany: vi.fn().mockResolvedValue([{ cashReceived: 1000 }]) },
+      creditorLedgerEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      expenditure: { findMany: vi.fn().mockResolvedValue([]) },
+      cashCollection: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: "cash_1",
+          tenantId: "tenant_1",
+          stationId: "st_1",
+          dailySessionId: "sess_1",
+          amountToBank: 1200,
+          remarks: null,
+        }),
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([{ amountToBank: 1200 }]),
+        update: vi.fn().mockResolvedValue({ id: "cash_1" }),
+      },
+    };
+
+    const input = {
+      id: "cash_1",
+      stationId: "st_1",
+      dailySessionId: "sess_1",
+      businessDate: "2026-06-11",
+      amountToBank: 0,
+      correctionReason: "Duplicate entry cleanup",
+    };
+
+    const result = await correctCashCollection("tenant_1", "user_1", input, mockDb as unknown as Db);
+
+    expect(result.id).toBe("cash_1");
+    expect(mockDb.cashCollection.update).toHaveBeenCalled();
   });
 
   it("rejects likely duplicate cash collection entries", async () => {

@@ -5,6 +5,7 @@ import { calcPhysicalCashToBank, calcCashCollectionVariance } from "../calculati
 import { appendCorrectionNote } from "../corrections";
 
 const LOCKED_SESSION_STATUSES = new Set(["READY_FOR_REVIEW", "APPROVED"]);
+const MONEY_EPSILON = 0.005;
 
 async function getTotalCreditorPayments(tenantId: string, dailySessionId: string, db: Db): Promise<number> {
   const creditorPayments = await db.creditorLedgerEntry.findMany({
@@ -17,6 +18,34 @@ async function getTotalCreditorPayments(tenantId: string, dailySessionId: string
   });
 
   return creditorPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
+}
+
+function assertNewCollectionWithinExpected(amountToBank: number, expectedCashRemaining: number) {
+  if (expectedCashRemaining <= MONEY_EPSILON) {
+    throw new Error("No remaining expected cash is available for banking. Correct existing cash entries before adding another one.");
+  }
+
+  if (amountToBank - expectedCashRemaining > MONEY_EPSILON) {
+    throw new Error(`Amount to bank cannot exceed the remaining expected cash of GHS${expectedCashRemaining.toFixed(2)}.`);
+  }
+}
+
+function assertCorrectionWithinExpected(
+  amountToBank: number,
+  expectedCashRemaining: number,
+  existingAmountToBank: number
+) {
+  if (amountToBank <= existingAmountToBank + MONEY_EPSILON) {
+    return;
+  }
+
+  if (expectedCashRemaining <= MONEY_EPSILON) {
+    throw new Error("No remaining expected cash is available. Reduce or correct existing cash entries before increasing this entry.");
+  }
+
+  if (amountToBank - expectedCashRemaining > MONEY_EPSILON) {
+    throw new Error(`Corrected amount cannot exceed the remaining expected cash of GHS${expectedCashRemaining.toFixed(2)}.`);
+  }
 }
 
 export async function createCashCollection(
@@ -85,6 +114,7 @@ export async function createCashCollection(
 
   const baseExpectedCash = calcPhysicalCashToBank(totalCashReceived, totalNetExpenditure);
   const expectedCashRemaining = baseExpectedCash - totalBankedSoFar;
+  assertNewCollectionWithinExpected(input.amountToBank, expectedCashRemaining);
   const variance = calcCashCollectionVariance(input.amountToBank, expectedCashRemaining);
 
   const data: Prisma.CashCollectionCreateInput = {
@@ -176,6 +206,7 @@ export async function correctCashCollection(
 
   const baseExpectedCash = calcPhysicalCashToBank(totalCashReceived, totalNetExpenditure);
   const expectedCashRemaining = baseExpectedCash - totalBankedExcludingThis;
+  assertCorrectionWithinExpected(input.amountToBank, expectedCashRemaining, Number(existing.amountToBank));
   const variance = calcCashCollectionVariance(input.amountToBank, expectedCashRemaining);
 
   return db.cashCollection.update({
