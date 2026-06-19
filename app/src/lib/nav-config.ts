@@ -285,13 +285,6 @@ export const NAV_CONFIG: NavGroup[] = [
         access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "limited", AUDITOR: "view" },
       },
       {
-        label: "Users & Roles",
-        href: "/setup/users",
-        icon: "users-gear",
-        stationScoped: false,
-        access: { OWNER: "full", ADMIN: "full", AUDITOR: "view" },
-      },
-      {
         label: "Lube Bay Setup",
         href: "/setup/lube-bay",
         icon: "screwdriver-wrench",
@@ -372,6 +365,13 @@ export const NAV_CONFIG: NavGroup[] = [
         label: "Security",
         href: "/admin/security",
         icon: "lock",
+        stationScoped: false,
+        access: { OWNER: "full", ADMIN: "full", AUDITOR: "view" },
+      },
+      {
+        label: "Users & Roles",
+        href: "/setup/users",
+        icon: "users-gear",
         stationScoped: false,
         access: { OWNER: "full", ADMIN: "full", AUDITOR: "view" },
       },

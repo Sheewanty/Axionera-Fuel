@@ -12,6 +12,7 @@ type DailySessionProps = { id: string; businessDate: string; shift: string; stat
 type Product = { id: string; name: string; price: number };
 type Creditor = { id: string; name: string };
 type ServiceType = { id: string; name: string; vehicleCategory: string; defaultLabourCharge: number };
+type MomoOperator = { id: string; name: string };
 type SaleLine = { productId: string; productName: string; quantity: number; unitPrice: number; amount: number };
 
 type LubeBaySale = {
@@ -47,6 +48,7 @@ type Props = {
   products: Product[];
   creditors: Creditor[];
   serviceTypes: ServiceType[];
+  momoOperators: MomoOperator[];
   supervisorName: string;
   sales: LubeBaySale[];
 };
@@ -113,7 +115,7 @@ function fieldLabel(field: string): string {
   return labels[field] ?? field;
 }
 
-export default function LubeBaySalesClient({ station, dailySession, products, creditors, serviceTypes, supervisorName, sales }: Props) {
+export default function LubeBaySalesClient({ station, dailySession, products, creditors, serviceTypes, momoOperators, supervisorName, sales }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -123,6 +125,15 @@ export default function LubeBaySalesClient({ station, dailySession, products, cr
 
   const canEdit = Boolean(dailySession) && (dailySession?.status === "OPEN" || dailySession?.status === "REOPENED");
   const isEditing = Boolean(form.id);
+  const disabledReason = !dailySession
+    ? "Open today's session before recording lube bay sales."
+    : !canEdit
+      ? `Lube bay sales cannot be changed while the session is ${dailySession.status}.`
+      : serviceTypes.length === 0
+        ? "Set up at least one active lube bay service type."
+        : products.length === 0
+          ? "Set up at least one active lube bay product with a price."
+          : null;
 
   const linePreview = useMemo(() => form.lines.map((line) => {
     const product = products.find((item) => item.id === line.productId);
@@ -252,10 +263,11 @@ export default function LubeBaySalesClient({ station, dailySession, products, cr
   return (
     <div style={{ marginTop: 24 }}>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-        <button className="btn btn-primary" onClick={openNew} disabled={!canEdit || serviceTypes.length === 0 || products.length === 0}>
+        <button className="btn btn-primary" type="button" onClick={openNew} disabled={disabledReason !== null}>
           <Plus size={14} />
           Record Lube Bay Sale
         </button>
+        {disabledReason && <div style={{ alignSelf: "center", color: "var(--ax-muted)", fontSize: 13 }}>{disabledReason}</div>}
       </div>
 
       {serviceTypes.length === 0 && <div className="dash-panel" style={{ padding: 16, color: "var(--ax-amber)", marginBottom: 20 }}>Set up lube bay service types before recording sales.</div>}
@@ -343,7 +355,7 @@ export default function LubeBaySalesClient({ station, dailySession, products, cr
             <label className="form-group"><span className="form-label">Total Expected (Computed)</span><input className="form-input computed" value={formatCurrency(totalExpected)} readOnly /></label>
             <label className="form-group"><span className="form-label">Mode of Payment</span><select className="form-select" value={form.paymentMode} onChange={(e) => setField("paymentMode", e.target.value as FormState["paymentMode"])}><option value="CASH">Cash</option><option value="MOMO">MoMo</option><option value="CARD">Card / Go Card</option><option value="CREDIT">Credit</option></select></label>
             {form.paymentMode === "CREDIT" && <label className="form-group"><span className="form-label">Creditor *</span><select className="form-select" value={form.creditorId} onChange={(e) => setField("creditorId", e.target.value)} required><option value="">Select creditor</option>{creditors.map((creditor) => <option key={creditor.id} value={creditor.id}>{creditor.name}</option>)}</select></label>}
-            {form.paymentMode === "MOMO" && <><label className="form-group"><span className="form-label">MoMo Operator *</span><input className="form-input" value={form.momoOperator} onChange={(e) => setField("momoOperator", e.target.value)} required /></label><label className="form-group"><span className="form-label">MoMo Number *</span><input className="form-input" value={form.momoNumber} onChange={(e) => setField("momoNumber", e.target.value)} required /></label></>}
+            {form.paymentMode === "MOMO" && <><label className="form-group"><span className="form-label">MoMo Operator *</span><select className="form-select" value={form.momoOperator} onChange={(e) => setField("momoOperator", e.target.value)} required><option value="">Select operator</option>{momoOperators.map((operator) => <option key={operator.id} value={operator.name}>{operator.name}</option>)}</select></label><label className="form-group"><span className="form-label">MoMo Number *</span><input className="form-input" value={form.momoNumber} onChange={(e) => setField("momoNumber", e.target.value)} required /></label></>}
             {form.paymentMode === "CARD" && <label className="form-group"><span className="form-label">Card / Go Card Details *</span><input className="form-input" value={form.cardDetails} onChange={(e) => setField("cardDetails", e.target.value)} required /></label>}
             {nonCashTotal > 0 && <label className="form-group"><span className="form-label">Non-Cash Amount (Computed)</span><input className="form-input computed" value={formatCurrency(nonCashTotal)} readOnly /></label>}
             <label className="form-group"><span className="form-label">Technician</span><input className="form-input" value={form.technicianName} onChange={(e) => setField("technicianName", e.target.value)} /></label>

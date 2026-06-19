@@ -84,6 +84,14 @@ export const lubeBayServiceTypeSchema = z.object({
   isActive: z.coerce.boolean().default(true),
 });
 
+export const lubeBayMomoOperatorSchema = z.object({
+  id: z.string().optional(),
+  stationId: optionalId,
+  name: z.string().trim().min(2, "MoMo operator is required").max(40, "MoMo operator name is too long"),
+  isActive: z.coerce.boolean().default(true),
+});
+
 export type CreateLubeBaySaleInput = z.infer<typeof createLubeBaySaleSchema>;
 export type UpdateLubeBaySaleInput = z.infer<typeof updateLubeBaySaleSchema>;
 export type LubeBayServiceTypeInput = z.infer<typeof lubeBayServiceTypeSchema>;
+export type LubeBayMomoOperatorInput = z.infer<typeof lubeBayMomoOperatorSchema>;

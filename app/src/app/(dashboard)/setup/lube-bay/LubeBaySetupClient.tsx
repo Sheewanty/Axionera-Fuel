@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { saveLubeBayServiceTypeAction, saveProductAction, setProductPriceAction } from "@/lib/actions/setup.actions";
+import { saveLubeBayMomoOperatorAction, saveLubeBayServiceTypeAction, saveProductAction, setProductPriceAction } from "@/lib/actions/setup.actions";
 import { LUBE_VEHICLE_CATEGORIES } from "@/lib/schemas/lube-bay.schema";
 
 type ActionResponse = {
@@ -27,10 +27,17 @@ type ServiceType = {
   isActive: boolean;
 };
 
+type MomoOperator = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
+
 type Props = {
   stationId: string;
   products: Product[];
   serviceTypes: ServiceType[];
+  momoOperators: MomoOperator[];
 };
 
 function FormError({ result }: { result: ActionResponse | null }) {
@@ -66,7 +73,7 @@ function FormError({ result }: { result: ActionResponse | null }) {
   );
 }
 
-function useSetupSubmit(action: (formData: FormData) => Promise<ActionResponse>) {
+function useSetupSubmit(action: (formData: FormData) => Promise<ActionResponse>, onSuccess?: () => void) {
   const router = useRouter();
   const [result, setResult] = useState<ActionResponse | null>(null);
   const [pending, startTransition] = useTransition();
@@ -80,6 +87,7 @@ function useSetupSubmit(action: (formData: FormData) => Promise<ActionResponse>)
       setResult(response);
       if (response.success) {
         form.reset();
+        onSuccess?.();
         router.refresh();
       }
     });
@@ -117,25 +125,29 @@ function SubmitButton({ pending, children }: { pending: boolean; children: React
   );
 }
 
-export default function LubeBaySetupClient({ stationId, products, serviceTypes }: Props) {
-  const serviceForm = useSetupSubmit(saveLubeBayServiceTypeAction);
+export default function LubeBaySetupClient({ stationId, products, serviceTypes, momoOperators }: Props) {
+  const [editingService, setEditingService] = useState<ServiceType | null>(null);
+  const [editingOperator, setEditingOperator] = useState<MomoOperator | null>(null);
+  const serviceForm = useSetupSubmit(saveLubeBayServiceTypeAction, () => setEditingService(null));
+  const operatorForm = useSetupSubmit(saveLubeBayMomoOperatorAction, () => setEditingOperator(null));
   const productForm = useSetupSubmit(saveProductAction);
   const priceForm = useSetupSubmit(setProductPriceAction);
 
   return (
     <>
-      <SetupPanel title="Add Service Type">
+      <SetupPanel title={editingService ? "Edit Service Type" : "Add Service Type"}>
         <FormError result={serviceForm.result} />
-        <form onSubmit={serviceForm.submit}>
+        <form key={editingService?.id ?? "new-service"} onSubmit={serviceForm.submit}>
+          {editingService && <input type="hidden" name="id" value={editingService.id} />}
           <input type="hidden" name="stationId" value={stationId} />
           <FormGrid>
             <div className="form-group">
               <label className="form-label">Service Type</label>
-              <input className="form-input" name="name" required placeholder="Oil Change" />
+              <input className="form-input" name="name" required placeholder="Oil Change" defaultValue={editingService?.name ?? ""} />
             </div>
             <div className="form-group">
               <label className="form-label">Vehicle Category</label>
-              <select className="form-select" name="vehicleCategory" required>
+              <select className="form-select" name="vehicleCategory" required defaultValue={editingService?.vehicleCategory ?? ""}>
                 <option value="">Select vehicle category</option>
                 {LUBE_VEHICLE_CATEGORIES.map((category) => (
                   <option key={category} value={category}>
@@ -146,16 +158,52 @@ export default function LubeBaySetupClient({ stationId, products, serviceTypes }
             </div>
             <div className="form-group">
               <label className="form-label">Default Labour Charge</label>
-              <input className="form-input" name="defaultLabourCharge" type="number" step="0.01" min="0" defaultValue="0" required />
+              <input className="form-input" name="defaultLabourCharge" type="number" step="0.01" min="0" defaultValue={editingService?.defaultLabourCharge ?? 0} required />
             </div>
             <div className="form-group">
               <label className="form-label">Status</label>
-              <select className="form-select" name="isActive" defaultValue="true">
+              <select className="form-select" name="isActive" defaultValue={editingService ? String(editingService.isActive) : "true"}>
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </select>
             </div>
-            <SubmitButton pending={serviceForm.pending}>Save Service Type</SubmitButton>
+            <SubmitButton pending={serviceForm.pending}>{editingService ? "Update Service Type" : "Save Service Type"}</SubmitButton>
+            {editingService && (
+              <div style={{ alignSelf: "end" }}>
+                <button className="btn btn-outline" type="button" onClick={() => setEditingService(null)}>
+                  Cancel Edit
+                </button>
+              </div>
+            )}
+          </FormGrid>
+        </form>
+      </SetupPanel>
+
+      <SetupPanel title={editingOperator ? "Edit MoMo Operator" : "Add MoMo Operator"}>
+        <FormError result={operatorForm.result} />
+        <form key={editingOperator?.id ?? "new-operator"} onSubmit={operatorForm.submit}>
+          {editingOperator && <input type="hidden" name="id" value={editingOperator.id} />}
+          <input type="hidden" name="stationId" value={stationId} />
+          <FormGrid>
+            <div className="form-group">
+              <label className="form-label">MoMo Operator</label>
+              <input className="form-input" name="name" required placeholder="MTN" defaultValue={editingOperator?.name ?? ""} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Status</label>
+              <select className="form-select" name="isActive" defaultValue={editingOperator ? String(editingOperator.isActive) : "true"}>
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+            <SubmitButton pending={operatorForm.pending}>{editingOperator ? "Update Operator" : "Save Operator"}</SubmitButton>
+            {editingOperator && (
+              <div style={{ alignSelf: "end" }}>
+                <button className="btn btn-outline" type="button" onClick={() => setEditingOperator(null)}>
+                  Cancel Edit
+                </button>
+              </div>
+            )}
           </FormGrid>
         </form>
       </SetupPanel>
@@ -223,17 +271,47 @@ export default function LubeBaySetupClient({ stationId, products, serviceTypes }
                   <th>Vehicle Category</th>
                   <th style={{ textAlign: "right" }}>Default Labour</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {serviceTypes.length === 0 ? (
-                  <tr><td colSpan={4} style={{ textAlign: "center", padding: 24, color: "var(--ax-muted)" }}>No service types configured.</td></tr>
+                  <tr><td colSpan={5} style={{ textAlign: "center", padding: 24, color: "var(--ax-muted)" }}>No service types configured.</td></tr>
                 ) : serviceTypes.map((service) => (
                   <tr key={service.id}>
                     <td style={{ fontWeight: 700 }}>{service.name}</td>
                     <td>{service.vehicleCategory}</td>
                     <td style={{ textAlign: "right" }}>GHS {service.defaultLabourCharge.toFixed(2)}</td>
                     <td><span className="status-badge" data-status={service.isActive ? "ACTIVE" : "INACTIVE"}>{service.isActive ? "Active" : "Inactive"}</span></td>
+                    <td><button className="btn btn-outline btn-sm" type="button" onClick={() => setEditingService(service)}>Edit</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="dash-panel">
+          <div className="dash-panel-head">
+            <div className="dash-panel-title">MoMo Operators</div>
+          </div>
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Operator</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {momoOperators.length === 0 ? (
+                  <tr><td colSpan={3} style={{ textAlign: "center", padding: 24, color: "var(--ax-muted)" }}>No MoMo operators configured.</td></tr>
+                ) : momoOperators.map((operator) => (
+                  <tr key={operator.id}>
+                    <td style={{ fontWeight: 700 }}>{operator.name}</td>
+                    <td><span className="status-badge" data-status={operator.isActive ? "ACTIVE" : "INACTIVE"}>{operator.isActive ? "Active" : "Inactive"}</span></td>
+                    <td><button className="btn btn-outline btn-sm" type="button" onClick={() => setEditingOperator(operator)}>Edit</button></td>
                   </tr>
                 ))}
               </tbody>

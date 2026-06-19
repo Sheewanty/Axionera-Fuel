@@ -1,6 +1,6 @@
 import type { LubeBaySale } from "@prisma/client";
 import type { Db } from "./types";
-import type { CreateLubeBaySaleInput, UpdateLubeBaySaleInput, LubeBayServiceTypeInput } from "../schemas/lube-bay.schema";
+import type { CreateLubeBaySaleInput, UpdateLubeBaySaleInput, LubeBayServiceTypeInput, LubeBayMomoOperatorInput } from "../schemas/lube-bay.schema";
 import { calcLubeBayTotalExpected, calcLubeBayVariance } from "../calculations";
 import { appendCorrectionNote } from "../corrections";
 
@@ -80,6 +80,20 @@ async function validateCreditor(db: Db, input: TenantScopedInput & Pick<CreateLu
   if (!creditor) throw new Error("Selected creditor is not active or does not belong to this station");
 }
 
+async function validateMomoOperator(db: Db, input: TenantScopedInput & Pick<CreateLubeBaySaleInput, "stationId" | "momoOperator" | "paymentMode">) {
+  if (input.paymentMode !== "MOMO") return;
+  const operator = await db.lubeBayMomoOperator.findFirst({
+    where: {
+      tenantId: input.tenantId,
+      name: input.momoOperator,
+      isActive: true,
+      OR: [{ stationId: input.stationId }, { stationId: null }],
+    },
+    select: { id: true },
+  });
+  if (!operator) throw new Error("Selected MoMo operator is not active for this station");
+}
+
 function paymentAmounts(input: CreateLubeBaySaleInput, totalExpected: number) {
   return {
     cashAmount: input.paymentMode === "CASH" ? totalExpected : 0,
@@ -98,6 +112,7 @@ export async function createLubeBaySale(db: Db, input: CreateLubeBaySaleServiceI
   const session = await getWritableSession(db, input.tenantId, input.stationId, input.dailySessionId);
   const serviceType = await getServiceType(db, input.tenantId, input.stationId, input.serviceTypeId);
   await validateCreditor(db, input);
+  await validateMomoOperator(db, input);
   const lineData = await getLineData(db, input);
   const productTotal = lineData.reduce((sum, line) => sum + line.amount, 0);
   const totalExpected = calcLubeBayTotalExpected(productTotal, input.labourCharge, 0, input.discount);
@@ -173,6 +188,7 @@ export async function updateLubeBaySale(db: Db, input: UpdateLubeBaySaleServiceI
   await getWritableSession(db, input.tenantId, input.stationId, input.dailySessionId);
   const serviceType = await getServiceType(db, input.tenantId, input.stationId, input.serviceTypeId);
   await validateCreditor(db, input);
+  await validateMomoOperator(db, input);
   const lineData = await getLineData(db, input);
   const productTotal = lineData.reduce((sum, line) => sum + line.amount, 0);
   const totalExpected = calcLubeBayTotalExpected(productTotal, input.labourCharge, 0, input.discount);
@@ -274,6 +290,45 @@ export async function saveLubeBayServiceType(db: Db, input: SaveLubeBayServiceTy
       name: input.name,
       vehicleCategory: input.vehicleCategory,
       defaultLabourCharge: input.defaultLabourCharge,
+      isActive: input.isActive,
+      createdBy: input.userId,
+    },
+  });
+}
+
+export type SaveLubeBayMomoOperatorInput = LubeBayMomoOperatorInput & TenantScopedInput & {
+  userId: string;
+};
+
+export async function saveLubeBayMomoOperator(db: Db, input: SaveLubeBayMomoOperatorInput) {
+  if (input.stationId) {
+    const station = await db.station.findFirst({ where: { id: input.stationId, tenantId: input.tenantId } });
+    if (!station) throw new Error("Station was not found for this company");
+  }
+
+  if (input.id) {
+    const existing = await db.lubeBayMomoOperator.findFirst({
+      where: { id: input.id, tenantId: input.tenantId },
+      select: { id: true },
+    });
+    if (!existing) throw new Error("MoMo operator was not found for this company");
+
+    return db.lubeBayMomoOperator.update({
+      where: { id: input.id },
+      data: {
+        name: input.name,
+        stationId: input.stationId,
+        isActive: input.isActive,
+        updatedBy: input.userId,
+      },
+    });
+  }
+
+  return db.lubeBayMomoOperator.create({
+    data: {
+      tenantId: input.tenantId,
+      stationId: input.stationId,
+      name: input.name,
       isActive: input.isActive,
       createdBy: input.userId,
     },

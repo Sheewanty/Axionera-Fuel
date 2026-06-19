@@ -62,6 +62,7 @@ model Station {
   martSales           MartSale[]
   lubeBaySales        LubeBaySale[]
   lubeBayServiceTypes LubeBayServiceType[]
+  lubeBayMomoOperators LubeBayMomoOperator[]
   auditLogs           AuditLog[]
 
   @@unique([tenantId, code])
@@ -634,6 +635,23 @@ model LubeBayServiceType {
   sales          LubeBaySale[]
 
   @@unique([tenantId, stationId, name, vehicleCategory])
+  @@index([tenantId, stationId, isActive])
+}
+
+model LubeBayMomoOperator {
+  id        String   @id @default(cuid())
+  tenantId  String
+  stationId String?
+  name      String
+  isActive  Boolean  @default(true)
+  createdBy String
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  station Station? @relation(fields: [stationId], references: [id])
+
+  @@unique([tenantId, stationId, name])
   @@index([tenantId, stationId, isActive])
 }
 

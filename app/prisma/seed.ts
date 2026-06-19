@@ -317,6 +317,17 @@ async function main() {
   });
   console.log("✓  Lube bay service types seeded");
 
+  await prisma.lubeBayMomoOperator.createMany({
+    skipDuplicates: true,
+    data: ["MTN", "Telecel", "AT"].map((name) => ({
+      tenantId: tenant.id,
+      stationId: stationAccra.id,
+      name,
+      createdBy: userAdmin.id,
+    })),
+  });
+  console.log("✓  Lube bay MoMo operators seeded");
+
   // ── Daily Session (today, Accra Central, Day shift) ───────────────────────
   const session = await prisma.dailySession.upsert({
     where: {

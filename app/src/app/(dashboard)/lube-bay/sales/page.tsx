@@ -45,7 +45,7 @@ export default async function LubeBaySalesPage({
     },
   });
 
-  const [products, creditors, serviceTypes, sales] = await Promise.all([
+  const [products, creditors, serviceTypes, momoOperators, sales] = await Promise.all([
     prisma.product.findMany({
       where: {
         tenantId: session.user.tenantId,
@@ -76,6 +76,14 @@ export default async function LubeBaySalesPage({
         OR: [{ stationId: targetStationId }, { stationId: null }],
       },
       orderBy: [{ name: "asc" }, { vehicleCategory: "asc" }],
+    }),
+    prisma.lubeBayMomoOperator.findMany({
+      where: {
+        tenantId: session.user.tenantId,
+        isActive: true,
+        OR: [{ stationId: targetStationId }, { stationId: null }],
+      },
+      orderBy: { name: "asc" },
     }),
     dailySession
       ? prisma.lubeBaySale.findMany({
@@ -127,6 +135,10 @@ export default async function LubeBaySalesPage({
           name: serviceType.name,
           vehicleCategory: serviceType.vehicleCategory,
           defaultLabourCharge: Number(serviceType.defaultLabourCharge),
+        }))}
+        momoOperators={momoOperators.map((operator) => ({
+          id: operator.id,
+          name: operator.name,
         }))}
         creditors={creditors.map((creditor) => ({
           id: creditor.id,
