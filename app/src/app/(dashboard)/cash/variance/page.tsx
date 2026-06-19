@@ -60,6 +60,7 @@ export default async function CashVariancePage({
   const totalBanked = dailySession.cashCollections.reduce((sum, r) => sum + Number(r.amountToBank), 0);
   const bankingVariance = totalBanked - expectedCash;
   const martCashSales = dailySession.martSales.reduce((sum, r) => sum + Number(r.cashSales), 0);
+  const martOpeningCash = dailySession.martSales.reduce((sum, r) => sum + Number(r.openingCash), 0);
   const martCashCount = dailySession.martSales.reduce((sum, r) => sum + Number(r.cashCount), 0);
   const martVariance = dailySession.martSales.reduce((sum, r) => sum + Number(r.variance), 0);
 
@@ -92,8 +93,9 @@ export default async function CashVariancePage({
           <div><dt className="text-sm text-slate-500">Pump Physical Cash</dt><dd className="font-medium">{formatCurrency(pumpCash)}</dd></div>
           <div><dt className="text-sm text-slate-500">HQ-Direct Pump Sales</dt><dd className="font-medium">{formatCurrency(hqDirect)}</dd></div>
           <div><dt className="text-sm text-slate-500">Net Expenditure</dt><dd className="font-medium">{formatCurrency(netExpenditure)}</dd></div>
+          <div><dt className="text-sm text-slate-500">Mart Opening Cash Float</dt><dd className="font-medium">{formatCurrency(martOpeningCash)}</dd></div>
           <div><dt className="text-sm text-slate-500">Mart Cash Sales</dt><dd className="font-medium">{formatCurrency(martCashSales)}</dd></div>
-          <div><dt className="text-sm text-slate-500">Mart Cash Count</dt><dd className="font-medium">{formatCurrency(martCashCount)}</dd></div>
+          <div><dt className="text-sm text-slate-500">Mart Closing Physical Cash</dt><dd className="font-medium">{formatCurrency(martCashCount)}</dd></div>
           <div><dt className="text-sm text-slate-500">Mart Cash Variance</dt><dd><VarianceBadge value={martVariance} format={formatCurrency} /></dd></div>
         </dl>
       </div>

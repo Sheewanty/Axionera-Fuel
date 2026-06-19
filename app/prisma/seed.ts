@@ -416,18 +416,19 @@ async function main() {
   const pos = 8420, cashSales = 3200, mobile = 1890, returns = 0;
   const netMartSales = calcMartNetSales(pos, cashSales, mobile, returns);
   const cashCount = 13700;
-  const martVariance = calcMartVariance(cashCount, cashSales);
+  const openingCash = 10500;
+  const martVariance = calcMartVariance(cashCount, openingCash, cashSales);
 
   await prisma.martSale.create({
     data: {
       tenantId: tenant.id, stationId: stationAccra.id,
       dailySessionId: session.id, businessDate,
-      posSales: pos, cashSales, mobileMoney: mobile, returns,
+      openingCash, posSales: pos, cashSales, mobileMoney: mobile, returns,
       netMartSales, cashCount, variance: martVariance,
       createdBy: userSupervisor.id,
     },
   });
-  console.log("✓  Mart sales seeded (POS | Cash | MoMo)");
+  console.log("✓  Mart sales seeded (Card | Cash | MoMo)");
 
   const expenditureDefs = [
     { category: "Generator Fuel", amount: 350, paymentToBank: 0, paidBy: userSupervisor.name, receiptAttached: true },

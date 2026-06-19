@@ -46,7 +46,7 @@ export async function createMartSale(db: Db, input: CreateMartSaleServiceInput):
   }
 
   const netMartSales = calcMartNetSales(input.posSales, input.cashSales, input.mobileMoney, input.returns);
-  const variance = calcMartVariance(input.cashCount, input.cashSales);
+  const variance = calcMartVariance(input.cashCount, input.openingCash, input.cashSales);
 
   return db.martSale.create({
     data: {
@@ -89,7 +89,7 @@ export async function updateMartSale(db: Db, input: UpdateMartSaleServiceInput):
   await getWritableSession(db, input.tenantId, input.stationId, existing.dailySessionId);
 
   const netMartSales = calcMartNetSales(input.posSales, input.cashSales, input.mobileMoney, input.returns);
-  const variance = calcMartVariance(input.cashCount, input.cashSales);
+  const variance = calcMartVariance(input.cashCount, input.openingCash, input.cashSales);
 
   return db.martSale.update({
     where: { id: input.id },

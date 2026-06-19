@@ -80,7 +80,7 @@ export function calcDischargeVariance(
   return afterTankLitres - expectedTankAfterDischarge;
 }
 
-/** Net mart sales */
+/** Net mart sales. `posSales` is card/POS terminal sales, not cash in drawer. */
 export function calcMartNetSales(
   posSales: number,
   cashSales: number,
@@ -90,9 +90,9 @@ export function calcMartNetSales(
   return posSales + cashSales + mobileMoney - returns;
 }
 
-/** Mart physical cash variance */
-export function calcMartVariance(cashCount: number, cashSales: number): number {
-  return cashCount - cashSales;
+/** Mart physical cash variance: closing till count minus opening float + cash sales. */
+export function calcMartVariance(cashCount: number, openingCash: number, cashSales: number): number {
+  return cashCount - (openingCash + cashSales);
 }
 
 /** Lube bay lubricant line amount */

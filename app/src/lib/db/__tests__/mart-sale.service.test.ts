@@ -5,7 +5,7 @@ import { calcMartNetSales, calcMartVariance } from "../../calculations";
 
 vi.mock("../../calculations", () => ({
   calcMartNetSales: vi.fn((pos, cash, mobile, returns) => pos + cash + mobile - returns),
-  calcMartVariance: vi.fn((cashCount, cashSales) => cashCount - cashSales),
+  calcMartVariance: vi.fn((cashCount, openingCash, cashSales) => cashCount - (openingCash + cashSales)),
 }));
 
 type MockDb = {
@@ -60,7 +60,7 @@ describe("mart sale service", () => {
     cashSales: 300,
     mobileMoney: 200,
     returns: 50,
-    cashCount: 290,
+    cashCount: 400,
     createdBy: "user_1",
   };
 
@@ -69,11 +69,11 @@ describe("mart sale service", () => {
 
     expect(result.id).toBe("mart_1");
     expect(calcMartNetSales).toHaveBeenCalledWith(500, 300, 200, 50);
-    expect(calcMartVariance).toHaveBeenCalledWith(290, 300);
+    expect(calcMartVariance).toHaveBeenCalledWith(400, 100, 300);
     expect(mockDb.martSale.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         netMartSales: 950,
-        variance: -10,
+        variance: 0,
         businessDate: new Date("2026-06-12T00:00:00.000Z"),
       }),
     });
@@ -109,7 +109,7 @@ describe("mart sale service", () => {
       where: { id: "mart_1" },
       data: expect.objectContaining({
         netMartSales: 950,
-        variance: -10,
+        variance: 0,
         updatedBy: "user_2",
       }),
     });

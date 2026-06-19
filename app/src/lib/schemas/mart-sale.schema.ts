@@ -13,11 +13,11 @@ export const createMartSaleSchema = z.object({
   stationId: z.string().min(1, "Station ID is required"),
   dailySessionId: z.string().min(1, "Daily session is required"),
   openingCash: nonNegativeAmount("Opening cash must be a non-negative number").default(0),
-  posSales: nonNegativeAmount("POS sales must be a non-negative number").default(0),
+  posSales: nonNegativeAmount("Card sales must be a non-negative number").default(0),
   cashSales: nonNegativeAmount("Cash sales must be a non-negative number").default(0),
-  mobileMoney: nonNegativeAmount("Mobile money must be a non-negative number").default(0),
+  mobileMoney: nonNegativeAmount("MoMo sales must be a non-negative number").default(0),
   returns: nonNegativeAmount("Returns must be a non-negative number").default(0),
-  cashCount: nonNegativeAmount("Cash count must be a non-negative number").default(0),
+  cashCount: nonNegativeAmount("Closing physical cash count must be a non-negative number").default(0),
   remarks: optionalText,
 });
 

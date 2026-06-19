@@ -35,15 +35,16 @@ export default async function MartCashCountPage({
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <PageTitle eyebrow="Mart Operations" title="Cash Count" subtitle="Physical mart cash counts from recorded mart sales summaries." />
+      <PageTitle eyebrow="Mart Operations" title="Cash Count" subtitle="Closing physical mart cash counts from recorded mart sales summaries." />
       <div className="bg-white rounded shadow overflow-hidden">
         <table className="data-table">
-          <thead><tr><th>Business Date</th><th>Status</th><th>Cash Sales</th><th>Cash Count</th><th>Variance</th></tr></thead>
+          <thead><tr><th>Business Date</th><th>Status</th><th>Opening Float</th><th>Cash Sales</th><th>Closing Physical Cash</th><th>Variance</th></tr></thead>
           <tbody>
             {records.map((record) => (
               <tr key={record.id}>
                 <td>{formatDisplayDate(record.businessDate)}</td>
                 <td>{record.dailySession.status.replace(/_/g, " ")}</td>
+                <td>{formatCurrency(Number(record.openingCash))}</td>
                 <td>{formatCurrency(Number(record.cashSales))}</td>
                 <td>{formatCurrency(Number(record.cashCount))}</td>
                 <td><VarianceBadge value={Number(record.variance)} format={formatCurrency} /></td>

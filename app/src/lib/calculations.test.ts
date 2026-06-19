@@ -104,8 +104,10 @@ describe("calcMartNetSales", () => {
 });
 
 describe("calcMartVariance", () => {
-  it("returns physical cash count minus mart cash sales", () => {
-    expect(calcMartVariance(800, 750)).toBe(50);
+  it("returns closing physical cash count minus opening float and cash sales", () => {
+    expect(calcMartVariance(800, 100, 700)).toBe(0);
+    expect(calcMartVariance(790, 100, 700)).toBe(-10);
+    expect(calcMartVariance(850, 100, 700)).toBe(50);
   });
 });
 

@@ -87,7 +87,8 @@ export default function MartSalesClient({ station, dailySession, martSale }: Pro
     [form]
   );
   const netMartSales = calcMartNetSales(numbers.posSales, numbers.cashSales, numbers.mobileMoney, numbers.returns);
-  const cashVariance = calcMartVariance(numbers.cashCount, numbers.cashSales);
+  const expectedClosingCash = numbers.openingCash + numbers.cashSales;
+  const cashVariance = calcMartVariance(numbers.cashCount, numbers.openingCash, numbers.cashSales);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -169,8 +170,8 @@ export default function MartSalesClient({ station, dailySession, martSale }: Pro
           </p>
         </div>
         <div style={{ background: "white", border: "1px solid var(--ax-border)", borderRadius: 8, padding: 16 }}>
-          <p style={{ color: "var(--ax-slate-500)", fontSize: 13, fontWeight: 600 }}>Cash Sales Expected</p>
-          <p style={{ color: "var(--ax-blue)", fontSize: 28, fontWeight: 700, marginTop: 8 }}>{formatCurrency(numbers.cashSales)}</p>
+          <p style={{ color: "var(--ax-slate-500)", fontSize: 13, fontWeight: 600 }}>Expected Closing Cash</p>
+          <p style={{ color: "var(--ax-blue)", fontSize: 28, fontWeight: 700, marginTop: 8 }}>{formatCurrency(expectedClosingCash)}</p>
         </div>
       </div>
 
@@ -191,11 +192,11 @@ export default function MartSalesClient({ station, dailySession, martSale }: Pro
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14 }}>
           <label className="form-group">
-            <span className="form-label">Opening Cash</span>
+            <span className="form-label">Opening Cash Float</span>
             <input type="number" min="0" step="0.01" value={form.openingCash} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, openingCash: e.target.value }))} className="form-input" />
           </label>
           <label className="form-group">
-            <span className="form-label">POS Sales</span>
+            <span className="form-label">Card Sales</span>
             <input type="number" min="0" step="0.01" value={form.posSales} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, posSales: e.target.value }))} className="form-input" />
           </label>
           <label className="form-group">
@@ -203,7 +204,7 @@ export default function MartSalesClient({ station, dailySession, martSale }: Pro
             <input type="number" min="0" step="0.01" value={form.cashSales} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, cashSales: e.target.value }))} className="form-input" />
           </label>
           <label className="form-group">
-            <span className="form-label">Mobile Money</span>
+            <span className="form-label">MoMo Sales</span>
             <input type="number" min="0" step="0.01" value={form.mobileMoney} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, mobileMoney: e.target.value }))} className="form-input" />
           </label>
           <label className="form-group">
@@ -211,7 +212,7 @@ export default function MartSalesClient({ station, dailySession, martSale }: Pro
             <input type="number" min="0" step="0.01" value={form.returns} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, returns: e.target.value }))} className="form-input" />
           </label>
           <label className="form-group">
-            <span className="form-label">Physical Cash Count</span>
+            <span className="form-label">Closing Physical Cash Count</span>
             <input type="number" min="0" step="0.01" value={form.cashCount} disabled={!canEdit} onChange={(e) => setForm((current) => ({ ...current, cashCount: e.target.value }))} className="form-input" />
           </label>
         </div>

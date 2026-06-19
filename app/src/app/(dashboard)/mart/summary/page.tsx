@@ -55,17 +55,17 @@ export default async function MartSummaryPage({
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded shadow"><div className="text-sm text-slate-500">Net Mart Sales</div><div className="text-2xl font-semibold">{formatCurrency(Number(martSale.netMartSales))}</div></div>
             <div className="bg-white p-4 rounded shadow"><div className="text-sm text-slate-500">Cash Sales</div><div className="text-2xl font-semibold">{formatCurrency(Number(martSale.cashSales))}</div></div>
-            <div className="bg-white p-4 rounded shadow"><div className="text-sm text-slate-500">Cash Count</div><div className="text-2xl font-semibold">{formatCurrency(Number(martSale.cashCount))}</div></div>
+            <div className="bg-white p-4 rounded shadow"><div className="text-sm text-slate-500">Closing Physical Cash</div><div className="text-2xl font-semibold">{formatCurrency(Number(martSale.cashCount))}</div></div>
             <div className="bg-white p-4 rounded shadow"><div className="text-sm text-slate-500">Cash Variance</div><VarianceBadge value={Number(martSale.variance)} format={formatCurrency} /></div>
           </div>
 
           <div className="bg-white p-6 rounded shadow">
             <h3 className="text-lg font-semibold mb-4">Sales Channels</h3>
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><dt className="text-sm text-slate-500">Opening Cash</dt><dd className="font-medium">{formatCurrency(Number(martSale.openingCash))}</dd></div>
-              <div><dt className="text-sm text-slate-500">POS Sales</dt><dd className="font-medium">{formatCurrency(Number(martSale.posSales))}</dd></div>
+              <div><dt className="text-sm text-slate-500">Opening Cash Float</dt><dd className="font-medium">{formatCurrency(Number(martSale.openingCash))}</dd></div>
+              <div><dt className="text-sm text-slate-500">Card Sales</dt><dd className="font-medium">{formatCurrency(Number(martSale.posSales))}</dd></div>
               <div><dt className="text-sm text-slate-500">Cash Sales</dt><dd className="font-medium">{formatCurrency(Number(martSale.cashSales))}</dd></div>
-              <div><dt className="text-sm text-slate-500">Mobile Money</dt><dd className="font-medium">{formatCurrency(Number(martSale.mobileMoney))}</dd></div>
+              <div><dt className="text-sm text-slate-500">MoMo Sales</dt><dd className="font-medium">{formatCurrency(Number(martSale.mobileMoney))}</dd></div>
               <div><dt className="text-sm text-slate-500">Returns</dt><dd className="font-medium">{formatCurrency(Number(martSale.returns))}</dd></div>
               <div><dt className="text-sm text-slate-500">Remarks</dt><dd className="font-medium">{martSale.remarks ?? "-"}</dd></div>
             </dl>
