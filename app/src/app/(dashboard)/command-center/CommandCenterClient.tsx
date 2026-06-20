@@ -3,25 +3,27 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fuel, Banknote, Store, AlertTriangle, Droplets, BarChart3, CheckCircle, Clock } from "lucide-react";
+import { AlertTriangle, Banknote, BarChart3, CheckCircle, Clock, Droplets, Fuel, Store } from "lucide-react";
+import DataTable from "@/components/ui/DataTable";
 import KpiCard from "@/components/ui/KpiCard";
+import PageTitle from "@/components/ui/PageTitle";
 import StatusBadge from "@/components/ui/StatusBadge";
 import VarianceBadge from "@/components/ui/VarianceBadge";
-import DataTable from "@/components/ui/DataTable";
-import PageTitle from "@/components/ui/PageTitle";
-import { formatCurrency, formatLitres } from "@/lib/calculations";
 import { openTodaySessionAction } from "@/lib/actions/daily-session.actions";
+import { formatCurrency, formatLitres } from "@/lib/calculations";
 
-const KPI_DATA = [
-  { label: "Total Litres Sold", value: "18,469 L", icon: <Fuel size={16} />, delta: "+4.1% vs yesterday", deltaType: "positive" as const },
-  { label: "Expected Forecourt Cash", value: "GHS 275,182", icon: <Banknote size={16} />, delta: "Super 95 + Diesel + Super 91", deltaType: "neutral" as const },
-  { label: "Cash Banked", value: "GHS 273,182", icon: <Banknote size={16} />, delta: "GHS 2,000 short", deltaType: "negative" as const },
-  { label: "Tank Variance / Loss", value: "37 L short", icon: <Droplets size={16} />, delta: "Within tolerance", deltaType: "neutral" as const },
-  { label: "Mart Net Sales", value: "GHS 13,510", icon: <Store size={16} />, delta: "+GHS 870 vs target", deltaType: "positive" as const },
-  { label: "Open Exceptions", value: "2", icon: <AlertTriangle size={16} />, delta: "Requires attention", deltaType: "negative" as const },
-];
+export type CommandCenterMetrics = {
+  totalLitresSold: number;
+  expectedForecourtRevenue: number;
+  cashBanked: number;
+  bankingVariance: number;
+  tankVarianceLitres: number;
+  martNetSales: number;
+  openExceptions: number;
+  hasOperationalData: boolean;
+};
 
-interface StationStatus {
+export type StationStatusRow = {
   id: string;
   station: string;
   date: string;
@@ -29,40 +31,46 @@ interface StationStatus {
   litresSold: number;
   cashBanked: number;
   variance: number;
-}
+};
 
-const STATION_STATUS: StationStatus[] = [
-  { id: "1", station: "GOIL Accra Central", date: "11-Jun-2026", status: "READY_FOR_REVIEW", litresSold: 11469, cashBanked: 168182, variance: -1238 },
-  { id: "2", station: "GOIL Kumasi Adum", date: "11-Jun-2026", status: "OPEN", litresSold: 7000, cashBanked: 105000, variance: -762 },
-];
-
-interface Alert {
+export type CommandCenterAlert = {
   id: string;
   severity: "danger" | "warning" | "ok";
   title: string;
   detail: string;
-}
+  amount: number;
+  unit: "currency" | "litres";
+};
 
-const ALERTS: Alert[] = [
-  { id: "a1", severity: "danger", title: "Pump 2 Nozzle A - Cash Short GHS 820", detail: "GOIL Accra Central | 11-Jun-2026 | Attendant: Abena Osei" },
-  { id: "a2", severity: "warning", title: "Tank 2 Diesel Variance 37 L short", detail: "GOIL Accra Central | Closing stock lower than expected" },
-];
+function varianceDelta(value: number, unit: "currency" | "litres") {
+  if (value === 0) return "No variance";
+  const direction = value < 0 ? "short" : "over";
+  if (unit === "currency") return `${formatCurrency(Math.abs(value))} ${direction}`;
+  return `${Math.abs(value).toLocaleString()} L ${direction}`;
+}
 
 export default function CommandCenterClient({
   stationId,
   stationName,
   businessDate,
   dailySessionStatus,
+  metrics,
+  statusRows,
+  alerts,
 }: {
   stationId: string;
   stationName: string;
   businessDate: string;
   dailySessionStatus: string | null;
+  metrics: CommandCenterMetrics;
+  statusRows: StationStatusRow[];
+  alerts: CommandCenterAlert[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const hasOpenSession = Boolean(dailySessionStatus);
 
   const handleOpenNewDay = () => {
     setMessage(null);
@@ -81,6 +89,51 @@ export default function CommandCenterClient({
     });
   };
 
+  const kpis = [
+    {
+      label: "Total Litres Sold",
+      value: formatLitres(metrics.totalLitresSold),
+      icon: <Fuel size={16} />,
+      delta: metrics.totalLitresSold === 0 ? "No pump readings recorded" : "From pump readings",
+      deltaType: metrics.totalLitresSold === 0 ? "neutral" as const : "positive" as const,
+    },
+    {
+      label: "Expected Forecourt Revenue",
+      value: formatCurrency(metrics.expectedForecourtRevenue),
+      icon: <Banknote size={16} />,
+      delta: metrics.expectedForecourtRevenue === 0 ? "No closing sales recorded" : "Meter sales value",
+      deltaType: "neutral" as const,
+    },
+    {
+      label: "Cash Banked",
+      value: formatCurrency(metrics.cashBanked),
+      icon: <Banknote size={16} />,
+      delta: varianceDelta(metrics.bankingVariance, "currency"),
+      deltaType: metrics.bankingVariance === 0 ? "neutral" as const : "negative" as const,
+    },
+    {
+      label: "Tank Variance / Loss",
+      value: varianceDelta(metrics.tankVarianceLitres, "litres"),
+      icon: <Droplets size={16} />,
+      delta: metrics.tankVarianceLitres === 0 ? "No tank variance" : "Review tank dipping",
+      deltaType: metrics.tankVarianceLitres === 0 ? "neutral" as const : "negative" as const,
+    },
+    {
+      label: "Mart Net Sales",
+      value: formatCurrency(metrics.martNetSales),
+      icon: <Store size={16} />,
+      delta: metrics.martNetSales === 0 ? "No mart summary recorded" : "From mart summary",
+      deltaType: metrics.martNetSales === 0 ? "neutral" as const : "positive" as const,
+    },
+    {
+      label: "Open Exceptions",
+      value: String(metrics.openExceptions),
+      icon: <AlertTriangle size={16} />,
+      delta: metrics.openExceptions === 0 ? "No unresolved exceptions" : "Requires attention",
+      deltaType: metrics.openExceptions === 0 ? "positive" as const : "negative" as const,
+    },
+  ];
+
   return (
     <>
       <PageTitle
@@ -88,10 +141,17 @@ export default function CommandCenterClient({
         title="Station Dashboard"
         subtitle={`${stationName} | ${businessDate} | Status: ${dailySessionStatus?.replace(/_/g, " ") ?? "No session open"}`}
         actions={
-          <button className="btn btn-primary" onClick={handleOpenNewDay} disabled={isPending}>
-            <Clock size={13} />
-            {isPending ? "Opening..." : "Open New Day"}
-          </button>
+          hasOpenSession ? (
+            <Link className="btn btn-outline" href={`/daily-close?stationId=${stationId}`}>
+              <Clock size={13} />
+              View Daily Close
+            </Link>
+          ) : (
+            <button className="btn btn-primary" onClick={handleOpenNewDay} disabled={isPending}>
+              <Clock size={13} />
+              {isPending ? "Opening..." : "Open New Day"}
+            </button>
+          )
         }
       />
 
@@ -110,15 +170,34 @@ export default function CommandCenterClient({
         </div>
       )}
 
+      {!hasOpenSession && (
+        <div className="dash-panel" style={{ padding: 20, marginBottom: 20 }}>
+          <div className="dash-panel-title">No Session Open</div>
+          <p style={{ color: "var(--ax-muted)", marginTop: 8 }}>
+            Open a new day to begin recording pump readings, tank dipping, product discharge, mart sales, and banking.
+          </p>
+        </div>
+      )}
+
+      {hasOpenSession && !metrics.hasOperationalData && (
+        <div className="dash-panel" style={{ padding: 20, marginBottom: 20 }}>
+          <div className="dash-panel-title">No Operational Records Yet</div>
+          <p style={{ color: "var(--ax-muted)", marginTop: 8 }}>
+            This day is open, but no pump readings, tank dipping, cash collection, or mart summary has been entered yet.
+          </p>
+        </div>
+      )}
+
       <div className="kpi-grid">
-        {KPI_DATA.map((kpi) => (
+        {kpis.map((kpi) => (
           <KpiCard key={kpi.label} {...kpi} />
         ))}
       </div>
 
       <div className="mb-5">
-        <DataTable<StationStatus>
+        <DataTable<StationStatusRow>
           title="Daily Close Status"
+          emptyMessage="No daily sessions have been opened for this station yet."
           columns={[
             { key: "station", header: "Station" },
             { key: "date", header: "Date" },
@@ -141,19 +220,19 @@ export default function CommandCenterClient({
             },
             {
               key: "variance",
-              header: "Variance",
+              header: "Banking Variance",
               align: "right",
               computed: true,
               render: (row) => (
                 <VarianceBadge
                   value={row.variance}
-                  format={(v) => formatCurrency(Math.abs(v)) + (v < 0 ? " short" : " over")}
+                  format={(value) => formatCurrency(Math.abs(value)) + (value < 0 ? " short" : value > 0 ? " over" : "")}
                 />
               ),
             },
           ]}
-          data={STATION_STATUS}
-          getRowKey={(r) => r.id}
+          data={statusRows}
+          getRowKey={(row) => row.id}
         />
       </div>
 
@@ -163,23 +242,29 @@ export default function CommandCenterClient({
             <div className="dash-panel-title">Alerts & Unresolved Exceptions</div>
             <div className="dash-panel-sub">Ranked by financial impact</div>
           </div>
-          <button className="btn btn-outline btn-sm">
+          <Link className="btn btn-outline btn-sm" href={`/forecourt/variance-review?stationId=${stationId}`}>
             <BarChart3 size={12} />
             View All
-          </button>
+          </Link>
         </div>
         <div className="insight-list">
-          {ALERTS.map((alert) => (
-            <div key={alert.id} className={`insight-card ${alert.severity}`}>
-              <div className="insight-title">
-                {alert.severity === "danger" && <AlertTriangle size={13} style={{ display: "inline", marginRight: 6, color: "var(--ax-red)" }} />}
-                {alert.severity === "warning" && <AlertTriangle size={13} style={{ display: "inline", marginRight: 6, color: "var(--ax-amber)" }} />}
-                {alert.severity === "ok" && <CheckCircle size={13} style={{ display: "inline", marginRight: 6, color: "var(--ax-green)" }} />}
-                {alert.title}
-              </div>
-              <div className="insight-detail">{alert.detail}</div>
+          {alerts.length === 0 ? (
+            <div style={{ padding: "18px 1.25rem", color: "var(--ax-muted)", fontSize: 14 }}>
+              No unresolved exceptions for this station day.
             </div>
-          ))}
+          ) : (
+            alerts.map((alert) => (
+              <div key={alert.id} className={`insight-card ${alert.severity}`}>
+                <div className="insight-title">
+                  {alert.severity === "danger" && <AlertTriangle size={13} style={{ display: "inline", marginRight: 6, color: "var(--ax-red)" }} />}
+                  {alert.severity === "warning" && <AlertTriangle size={13} style={{ display: "inline", marginRight: 6, color: "var(--ax-amber)" }} />}
+                  {alert.severity === "ok" && <CheckCircle size={13} style={{ display: "inline", marginRight: 6, color: "var(--ax-green)" }} />}
+                  {alert.title} ({varianceDelta(alert.amount, alert.unit)})
+                </div>
+                <div className="insight-detail">{alert.detail}</div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </>
