@@ -15,6 +15,7 @@ type TankInfo = {
   productId: string;
   productName: string;
   openingStock: number;
+  hasPreviousDipping: boolean;
   meterSold: number;
 };
 
@@ -55,6 +56,7 @@ export default function TankDippingClient({
 
   // Form state
   const [selectedTankId, setSelectedTankId] = useState(tanks[0]?.id || "");
+  const [initialOpeningStockLitres, setInitialOpeningStockLitres] = useState("");
   const [receiptsLitres, setReceiptsLitres] = useState("");
   const [closingStockLitres, setClosingStockLitres] = useState("");
   const [closingDipCm, setClosingDipCm] = useState("");
@@ -64,7 +66,13 @@ export default function TankDippingClient({
 
   const selectedTank = tanks.find((t) => t.id === selectedTankId);
   
-  const openingStock = selectedTank?.openingStock || 0;
+  const parsedInitialOpening = parseFloat(initialOpeningStockLitres) || 0;
+  const openingStock = correctionTarget
+    ? correctionTarget.openingStock
+    : selectedTank?.hasPreviousDipping
+      ? selectedTank.openingStock
+      : parsedInitialOpening;
+  const isOpeningStockEditable = Boolean(selectedTank && !selectedTank.hasPreviousDipping && !correctionTarget);
   const meterSold = selectedTank?.meterSold || 0;
 
   const parsedReceipts = parseFloat(receiptsLitres) || 0;
@@ -101,6 +109,7 @@ export default function TankDippingClient({
       if (res.success) {
         setOpen(false);
         setCorrectionTarget(null);
+        setInitialOpeningStockLitres("");
         setReceiptsLitres("");
         setClosingStockLitres("");
         setClosingDipCm("");
@@ -117,6 +126,7 @@ export default function TankDippingClient({
   const openCorrection = (dipping: TankDippingView) => {
     setCorrectionTarget(dipping);
     setSelectedTankId(dipping.tankId);
+    setInitialOpeningStockLitres("");
     setReceiptsLitres(dipping.receipts.toString());
     setClosingStockLitres(dipping.closingStock.toString());
     setClosingDipCm(dipping.closingDipCm?.toString() ?? "");
@@ -132,6 +142,7 @@ export default function TankDippingClient({
       <div style={{ marginBottom: "20px" }}>
         <button className="btn btn-primary" onClick={() => {
           setCorrectionTarget(null);
+          setInitialOpeningStockLitres("");
           setOpen(true);
         }}>
           <Plus size={13} />
@@ -213,7 +224,10 @@ export default function TankDippingClient({
             <select 
               className="form-select" 
               value={selectedTankId} 
-              onChange={(e) => setSelectedTankId(e.target.value)}
+              onChange={(e) => {
+                setSelectedTankId(e.target.value);
+                setInitialOpeningStockLitres("");
+              }}
               disabled={isPending || Boolean(correctionTarget)}
             >
               {tanks.map((t) => (
@@ -226,7 +240,22 @@ export default function TankDippingClient({
           
           <div className="form-group">
             <label className="form-label">Opening Stock (L)</label>
-            <input className="form-input computed" type="number" readOnly value={openingStock} />
+            <input
+              className={`form-input ${isOpeningStockEditable ? "" : "computed"}`}
+              type="number"
+              step="1"
+              min="0"
+              readOnly={!isOpeningStockEditable}
+              value={isOpeningStockEditable ? initialOpeningStockLitres : openingStock}
+              onChange={(e) => setInitialOpeningStockLitres(e.target.value)}
+              placeholder={isOpeningStockEditable ? "Enter first opening stock" : undefined}
+              disabled={isPending}
+            />
+            {isOpeningStockEditable && (
+              <div className="form-help">
+                First record for this tank. Later opening stock will come from the previous closing stock.
+              </div>
+            )}
           </div>
           <div className="form-group">
             <label className="form-label">Receipts (L)</label>

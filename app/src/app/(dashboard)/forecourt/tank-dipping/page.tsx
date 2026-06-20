@@ -70,6 +70,7 @@ export default async function TankDippingPage({
     productId: t.product.id,
     productName: t.product.name,
     openingStock: 0,
+    hasPreviousDipping: false,
     meterSold: 0,
   }));
 
@@ -97,6 +98,7 @@ export default async function TankDippingPage({
       orderBy: { createdAt: "desc" },
     });
     tank.openingStock = latestDipping ? Number(latestDipping.closingStockLitres) : 0;
+    tank.hasPreviousDipping = Boolean(latestDipping);
 
     const pumpReadings = await prisma.pumpReading.findMany({
       where: { dailySessionId: dailySession.id, productId: tank.productId, tenantId: session.user.tenantId },

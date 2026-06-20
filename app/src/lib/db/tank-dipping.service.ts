@@ -39,12 +39,12 @@ export async function createTankDipping(
     throw new Error("Tank dipping already exists for this tank in this session");
   }
 
-  // Server-derived opening stock
+  // Server-derived after initialization; first tank dipping seeds the opening baseline.
   const latestDipping = await db.tankDipping.findFirst({
     where: { tankId: input.tankId, tenantId },
     orderBy: { createdAt: "desc" },
   });
-  const openingStockLitres = latestDipping ? Number(latestDipping.closingStockLitres) : 0;
+  const openingStockLitres = latestDipping ? Number(latestDipping.closingStockLitres) : input.openingStockLitres;
 
   // Server-derived meter sold
   const pumpReadings = await db.pumpReading.findMany({

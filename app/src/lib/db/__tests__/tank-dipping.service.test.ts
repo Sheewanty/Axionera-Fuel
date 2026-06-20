@@ -86,4 +86,42 @@ describe("TankDipping Service", () => {
       }),
     });
   });
+
+  it("uses submitted opening stock for the first dipping on a new tank", async () => {
+    const mockDb = {
+      dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },
+      tank: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1", productId: "prod_1" }) },
+      tankDipping: {
+        create: vi.fn().mockResolvedValue({ id: "dipping_first" }),
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+      pumpReading: {
+        findMany: vi.fn().mockResolvedValue([{ litresSold: 500 }]),
+      },
+    };
+
+    const input = {
+      stationId: "st_1",
+      dailySessionId: "sess_1",
+      businessDate: "2026-06-11",
+      tankId: "t_1",
+      productId: "prod_1",
+      openingStockLitres: 12000,
+      receiptsLitres: 0,
+      meterSoldLitres: 0,
+      closingStockLitres: 11500,
+      waterTestStatus: "CLEAR" as const,
+    };
+
+    const result = await createTankDipping("tenant_1", "user_1", input, mockDb as unknown as Db);
+
+    expect(result.id).toBe("dipping_first");
+    expect(mockDb.tankDipping.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        openingStockLitres: 12000,
+        meterSoldLitres: 500,
+        varianceLitres: 0,
+      }),
+    });
+  });
 });
