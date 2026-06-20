@@ -50,6 +50,15 @@ describe("CashCollection Service", () => {
       where: { tenantId: "tenant_1", dailySessionId: "sess_1" },
       select: { cashReceived: true },
     });
+    expect(mockDb.creditorLedgerEntry.findMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: "tenant_1",
+        dailySessionId: "sess_1",
+        type: "PAYMENT",
+        paymentMethod: { in: ["CASH", "MOMO"] },
+      },
+      select: { amount: true },
+    });
     
     // total cash received = 8000 pump cash + 200 creditor payments = 8200
     // total actual expenditure = 1000 + 500 = 1500

@@ -74,6 +74,17 @@ export default async function CashEntriesPage({
   });
   const totalCashReceived = pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0);
 
+  const debtorPayments = await prisma.creditorLedgerEntry.findMany({
+    where: {
+      tenantId: session.user.tenantId,
+      dailySessionId: dailySession.id,
+      type: "PAYMENT",
+      paymentMethod: { in: ["CASH", "MOMO"] },
+    },
+    select: { amount: true },
+  });
+  const totalDebtorCashReceived = debtorPayments.reduce((sum, entry) => sum + Number(entry.amount), 0);
+
   const expenditures = await prisma.expenditure.findMany({
     where: {
       tenantId: session.user.tenantId,
@@ -83,7 +94,7 @@ export default async function CashEntriesPage({
   });
   const totalNetExpenditure = expenditures.reduce((sum, exp) => sum + Number(exp.amount), 0);
 
-  const expectedCash = calcPhysicalCashToBank(totalCashReceived, totalNetExpenditure);
+  const expectedCash = calcPhysicalCashToBank(totalCashReceived + totalDebtorCashReceived, totalNetExpenditure);
   
   const totalBanked = cashCollections.reduce((sum, c) => sum + Number(c.amountToBank), 0);
   const currentExpectedCash = expectedCash - totalBanked;
@@ -115,6 +126,7 @@ export default async function CashEntriesPage({
           cashCollections={parsedCollections}
           currentExpectedCash={currentExpectedCash}
           totalCashReceived={totalCashReceived}
+          totalDebtorCashReceived={totalDebtorCashReceived}
           totalNetExpenditure={totalNetExpenditure}
           totalBanked={totalBanked}
         />

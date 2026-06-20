@@ -34,6 +34,7 @@ type Props = {
   cashCollections: CashCollectionProps[];
   currentExpectedCash: number;
   totalCashReceived: number;
+  totalDebtorCashReceived: number;
   totalNetExpenditure: number;
   totalBanked: number;
 };
@@ -44,6 +45,7 @@ export default function CashEntriesClient({
   cashCollections,
   currentExpectedCash,
   totalCashReceived,
+  totalDebtorCashReceived,
   totalNetExpenditure,
   totalBanked,
 }: Props) {
@@ -228,6 +230,10 @@ export default function CashEntriesClient({
             <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ax-slate-500)", fontSize: 14 }}>
               <span>Total Pump Cash Received</span>
               <span>{formatCurrency(totalCashReceived)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ax-slate-500)", fontSize: 14, marginTop: 6 }}>
+              <span>Debtor Payments Received</span>
+              <span>+ {formatCurrency(totalDebtorCashReceived)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ax-slate-500)", fontSize: 14, marginTop: 6 }}>
               <span>Total Net Expenditure</span>

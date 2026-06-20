@@ -13,6 +13,7 @@ async function getTotalCreditorPayments(tenantId: string, dailySessionId: string
       tenantId,
       dailySessionId,
       type: "PAYMENT",
+      paymentMethod: { in: ["CASH", "MOMO"] },
     },
     select: { amount: true },
   });
