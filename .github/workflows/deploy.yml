@@ -73,8 +73,8 @@ jobs:
           RATE_LIMIT_BACKEND: ${{ secrets.RATE_LIMIT_BACKEND }}
           UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
           UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME || github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN || github.token }}
         with:
           host: ${{ secrets.DO_HOST }}
           username: ${{ secrets.DO_USER }}
@@ -85,6 +85,8 @@ jobs:
             set -eu
             cd /opt/fuelstation-os
 
+            test -f deploy/docker-compose.prod.yml
+            test -f deploy/Caddyfile
             mv -f deploy/docker-compose.prod.yml docker-compose.yml
             mv -f deploy/Caddyfile Caddyfile
             rmdir deploy || true
@@ -105,17 +107,35 @@ jobs:
 
             chmod 600 .env.production
 
-            if [ -n "${GHCR_USERNAME:-}" ] && [ -n "${GHCR_TOKEN:-}" ]; then
-              echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
+            if [ -z "${GHCR_USERNAME:-}" ] || [ -z "${GHCR_TOKEN:-}" ]; then
+              echo "Missing GHCR credentials. Configure GHCR_USERNAME/GHCR_TOKEN or allow GitHub token package access."
+              exit 1
             fi
+            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
 
-            docker image prune -af || true
             docker compose --env-file .env.production pull app
             docker compose --env-file .env.production up -d postgres
             docker compose --env-file .env.production run --rm app npm run db:migrate
-            docker compose --env-file .env.production up -d
-            docker image prune -af || true
-            docker compose --env-file .env.production ps
+            docker compose --env-file .env.production up -d --remove-orphans
 
-            sleep 8
-            curl -fsS "https://${APP_DOMAIN}/api/health"
+            app_cid="$(docker compose --env-file .env.production ps -q app)"
+            for attempt in $(seq 1 36); do
+              health="$(docker inspect -f '{{.State.Health.Status}}' "$app_cid" 2>/dev/null || true)"
+              if [ "$health" = "healthy" ]; then
+                break
+              fi
+              echo "Waiting for app health: attempt ${attempt}/36, status=${health:-unknown}"
+              sleep 5
+            done
+
+            health="$(docker inspect -f '{{.State.Health.Status}}' "$app_cid" 2>/dev/null || true)"
+            if [ "$health" != "healthy" ]; then
+              echo "App did not become healthy. Recent app logs:"
+              docker compose --env-file .env.production logs --tail=120 app || true
+              exit 1
+            fi
+
+            docker compose --env-file .env.production ps
+            docker image prune -af || true
+
+            curl --retry 12 --retry-all-errors --retry-delay 5 -fsS "https://${APP_DOMAIN}/api/health"
