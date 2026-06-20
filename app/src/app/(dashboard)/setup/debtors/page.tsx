@@ -54,6 +54,9 @@ export default async function DebtorsSetupPage({
   ]);
 
   const balances = new Map<string, number>();
+  for (const creditor of creditors) {
+    balances.set(creditor.id, Number(creditor.openingBalance));
+  }
   for (const entry of ledgerEntries) {
     const current = balances.get(entry.creditorId) ?? 0;
     const signedAmount = entry.type === "SALE" ? Number(entry.amount) : -Number(entry.amount);
@@ -79,6 +82,7 @@ export default async function DebtorsSetupPage({
           phone: creditor.phone,
           email: creditor.email,
           creditLimit: creditor.creditLimit ? Number(creditor.creditLimit) : null,
+          openingBalance: Number(creditor.openingBalance),
           status: creditor.status,
           balance: balances.get(creditor.id) ?? 0,
         }))}

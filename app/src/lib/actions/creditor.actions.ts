@@ -29,6 +29,7 @@ const createCreditorSchema = z.object({
   phone: optionalText,
   email: optionalText,
   creditLimit: optionalNumber,
+  openingBalance: optionalNumber.default(0),
   notes: optionalText,
 });
 
@@ -122,6 +123,7 @@ export async function createCreditorAction(formData: FormData): Promise<ActionRe
           phone: parsed.data.phone ?? null,
           email: parsed.data.email ?? null,
           creditLimit: parsed.data.creditLimit ?? null,
+          openingBalance: parsed.data.openingBalance,
           notes: parsed.data.notes ?? null,
           createdBy: session.user.id,
         },

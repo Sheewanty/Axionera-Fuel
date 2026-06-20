@@ -13,6 +13,7 @@ type Creditor = {
   phone: string | null;
   email: string | null;
   creditLimit: number | null;
+  openingBalance: number;
   status: string;
   balance: number;
 };
@@ -58,6 +59,7 @@ function fieldLabel(field: string): string {
     momoOperator: "MoMo operator",
     momoNumber: "MoMo number",
     amount: "Amount",
+    openingBalance: "Opening balance",
   };
   return labels[field] ?? field;
 }
@@ -200,13 +202,14 @@ export default function CreditorsClient({
                 <th>Contact</th>
                 <th>Status</th>
                 <th style={{ textAlign: "right" }}>Credit Limit</th>
+                <th style={{ textAlign: "right" }}>Opening Balance</th>
                 <th style={{ textAlign: "right" }}>Balance Owed</th>
               </tr>
             </thead>
             <tbody>
               {creditors.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: "center", padding: 28, color: "var(--ax-muted)" }}>
+                  <td colSpan={6} style={{ textAlign: "center", padding: 28, color: "var(--ax-muted)" }}>
                     No debtors registered for this station.
                   </td>
                 </tr>
@@ -220,6 +223,7 @@ export default function CreditorsClient({
                     </td>
                     <td><span className="status-badge" data-status={creditor.status}>{creditor.status}</span></td>
                     <td style={{ textAlign: "right" }}>{creditor.creditLimit ? formatCurrency(creditor.creditLimit) : "-"}</td>
+                    <td style={{ textAlign: "right" }}>{formatCurrency(creditor.openingBalance)}</td>
                     <td style={{ textAlign: "right", fontWeight: 800 }}>{formatCurrency(creditor.balance)}</td>
                   </tr>
                 ))
@@ -303,6 +307,10 @@ export default function CreditorsClient({
             <label className="form-group">
               <span className="form-label">Credit Limit</span>
               <input className="form-input" name="creditLimit" type="number" min="0" step="0.01" />
+            </label>
+            <label className="form-group">
+              <span className="form-label">Opening Balance</span>
+              <input className="form-input" name="openingBalance" type="number" min="0" step="0.01" defaultValue="0" />
             </label>
             <label className="form-group" style={{ gridColumn: "1/-1" }}>
               <span className="form-label">Notes</span>

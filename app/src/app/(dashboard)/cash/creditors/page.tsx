@@ -39,7 +39,7 @@ export default async function CreditorsPage({
     },
   });
 
-  const [creditors, products, ledgerEntries] = await Promise.all([
+  const [creditors, products, ledgerEntries, balanceEntries] = await Promise.all([
     prisma.creditor.findMany({
       where: { tenantId: session.user.tenantId, stationId },
       orderBy: [{ status: "asc" }, { name: "asc" }],
@@ -54,10 +54,21 @@ export default async function CreditorsPage({
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
+    prisma.creditorLedgerEntry.findMany({
+      where: { tenantId: session.user.tenantId, stationId },
+      select: {
+        creditorId: true,
+        type: true,
+        amount: true,
+      },
+    }),
   ]);
 
   const balances = new Map<string, number>();
-  for (const entry of ledgerEntries) {
+  for (const creditor of creditors) {
+    balances.set(creditor.id, Number(creditor.openingBalance));
+  }
+  for (const entry of balanceEntries) {
     const current = balances.get(entry.creditorId) ?? 0;
     const signedAmount = entry.type === "SALE" ? Number(entry.amount) : -Number(entry.amount);
     balances.set(entry.creditorId, current + signedAmount);
@@ -85,6 +96,7 @@ export default async function CreditorsPage({
           phone: creditor.phone,
           email: creditor.email,
           creditLimit: creditor.creditLimit ? Number(creditor.creditLimit) : null,
+          openingBalance: Number(creditor.openingBalance),
           status: creditor.status,
           balance: balances.get(creditor.id) ?? 0,
         }))}

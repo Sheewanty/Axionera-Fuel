@@ -420,6 +420,7 @@ model Creditor {
   phone       String?
   email       String?
   creditLimit Decimal? @db.Decimal(12, 2)
+  openingBalance Decimal @default(0) @db.Decimal(12, 2)
   status      String   @default("ACTIVE") // ACTIVE | INACTIVE
   notes       String?
   createdBy   String
