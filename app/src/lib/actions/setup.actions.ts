@@ -565,6 +565,7 @@ export async function saveLubeBayMomoOperatorAction(formData: FormData): Promise
 
   try {
     const result = await mutation();
+    revalidatePath("/setup/payments");
     revalidatePath("/setup/lube-bay");
     revalidatePath("/lube-bay/sales");
     return { success: true, data: result };

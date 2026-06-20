@@ -30,7 +30,7 @@ export default async function LubeBaySetupPage({
 
   requireStationScope(session, stationId);
 
-  const [station, products, serviceTypes, momoOperators] = await Promise.all([
+  const [station, products, serviceTypes] = await Promise.all([
     prisma.station.findFirst({
       where: { id: stationId, tenantId: session.user.tenantId },
     }),
@@ -54,13 +54,6 @@ export default async function LubeBaySetupPage({
         OR: [{ stationId }, { stationId: null }],
       },
       orderBy: [{ name: "asc" }, { vehicleCategory: "asc" }],
-    }),
-    prisma.lubeBayMomoOperator.findMany({
-      where: {
-        tenantId: session.user.tenantId,
-        OR: [{ stationId }, { stationId: null }],
-      },
-      orderBy: { name: "asc" },
     }),
   ]);
 
@@ -88,11 +81,6 @@ export default async function LubeBaySetupPage({
             vehicleCategory: service.vehicleCategory,
             defaultLabourCharge: Number(service.defaultLabourCharge),
             isActive: service.isActive,
-          }))}
-          momoOperators={momoOperators.map((operator) => ({
-            id: operator.id,
-            name: operator.name,
-            isActive: operator.isActive,
           }))}
         />
       ) : (

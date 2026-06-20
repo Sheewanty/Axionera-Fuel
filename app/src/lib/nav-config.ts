@@ -292,6 +292,13 @@ export const NAV_CONFIG: NavGroup[] = [
         access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "limited", ACCOUNTANT: "view", AUDITOR: "view" },
       },
       {
+        label: "Payment Setup",
+        href: "/setup/payments",
+        icon: "money-check-dollar",
+        stationScoped: false,
+        access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "limited", ACCOUNTANT: "view", AUDITOR: "view" },
+      },
+      {
         label: "Lube Bay Setup",
         href: "/setup/lube-bay",
         icon: "screwdriver-wrench",
