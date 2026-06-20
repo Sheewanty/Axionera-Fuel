@@ -451,12 +451,13 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--ax-white);
   border: 1px solid var(--ax-border);
   border-radius: 10px;
-  padding: 16px;
+  padding: 15px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
   transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
   cursor: default;
+  min-width: 0;
 }
 
 .kpi-card:hover {
@@ -495,9 +496,14 @@ h1, h2, h3, h4, h5, h6 {
 
 .kpi-value {
   font-family: var(--app-font-heading);
-  font-size: 1.85rem;
+  font-size: 1.55rem;
+  font-weight: 500;
   color: var(--ax-blue);
-  line-height: 1;
+  line-height: 1.08;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 
 .kpi-delta {
