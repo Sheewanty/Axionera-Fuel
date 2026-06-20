@@ -10,13 +10,13 @@ import { getRequiredSession, requireRole } from "@/lib/session";
 type SearchParams = Promise<{ range?: string }>;
 
 function startDate(days: number) {
-  const date = new Date(`${currentBusinessDate()}T00:00:00.000Z`);
+  const date = new Date(currentBusinessDate());
   date.setUTCDate(date.getUTCDate() - (days - 1));
   return date;
 }
 
 function endDate() {
-  return new Date(`${currentBusinessDate()}T00:00:00.000Z`);
+  return new Date(currentBusinessDate());
 }
 
 export default async function OwnerDashboardPage({ searchParams }: { searchParams: SearchParams }) {
