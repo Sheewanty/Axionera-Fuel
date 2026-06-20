@@ -41,6 +41,27 @@ jobs:
           push: true
           tags: ${{ steps.image.outputs.name }}
 
+      - name: Validate production secrets
+        shell: bash
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_PRIVATE_KEY: ${{ secrets.DO_SSH_PRIVATE_KEY }}
+          APP_DOMAIN: ${{ secrets.APP_DOMAIN }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+        run: |
+          missing=0
+          for name in DO_HOST DO_USER DO_SSH_PRIVATE_KEY APP_DOMAIN POSTGRES_PASSWORD AUTH_SECRET; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required production secret: ${name}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
       - name: Prepare Droplet directory
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -48,6 +69,7 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          debug: true
           script: |
             set -eu
             sudo mkdir -p /opt/fuelstation-os/backups
@@ -60,6 +82,7 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          debug: true
           source: "deploy/docker-compose.prod.yml,deploy/Caddyfile"
           target: "/opt/fuelstation-os"
 
@@ -80,6 +103,7 @@ jobs:
           username: ${{ secrets.DO_USER }}
           key: ${{ secrets.DO_SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
+          debug: true
           envs: APP_IMAGE,APP_DOMAIN,POSTGRES_PASSWORD,AUTH_SECRET,RATE_LIMIT_BACKEND,UPSTASH_REDIS_REST_URL,UPSTASH_REDIS_REST_TOKEN,GHCR_USERNAME,GHCR_TOKEN
           script: |
             set -eu
