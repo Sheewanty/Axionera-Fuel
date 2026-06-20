@@ -15,7 +15,17 @@ export default async function TankDippingPage({
   const targetStationId = await resolveOrRedirectStation(session, params.stationId, "/forecourt/tank-dipping");
 
   if (!targetStationId) {
-    return <div>Error: No stations available for this account.</div>;
+    return (
+      <>
+        <PageTitle eyebrow="Forecourt Operations" title="Tank Dipping" />
+        <div className="dash-panel" style={{ padding: 24 }}>
+          <div className="dash-panel-title">No Stations Configured</div>
+          <p style={{ color: "var(--ax-muted)", marginTop: 8 }}>
+            Create at least one station, then add tanks before recording tank dipping.
+          </p>
+        </div>
+      </>
+    );
   }
 
   await requireWriteAccess(session, { targetStationId });
@@ -35,7 +45,17 @@ export default async function TankDippingPage({
   });
 
   if (!dailySession) {
-    return <div>No active session for this station</div>;
+    return (
+      <>
+        <PageTitle eyebrow="Forecourt Operations" title="Tank Dipping" subtitle={station.name} />
+        <div className="dash-panel" style={{ padding: 24 }}>
+          <div className="dash-panel-title">No Open Daily Session</div>
+          <p style={{ color: "var(--ax-muted)", marginTop: 8 }}>
+            Open today&apos;s daily session before recording tank dipping.
+          </p>
+        </div>
+      </>
+    );
   }
 
   const tanksDb = await prisma.tank.findMany({
@@ -52,6 +72,24 @@ export default async function TankDippingPage({
     openingStock: 0,
     meterSold: 0,
   }));
+
+  if (tanks.length === 0) {
+    return (
+      <>
+        <PageTitle
+          eyebrow="Forecourt Operations"
+          title="Tank Dipping"
+          subtitle={`${station.name} - ${formatDisplayDate(dailySession.businessDate)}`}
+        />
+        <div className="dash-panel" style={{ padding: 24 }}>
+          <div className="dash-panel-title">No Tanks Configured</div>
+          <p style={{ color: "var(--ax-muted)", marginTop: 8 }}>
+            Add station tanks under Setup before recording tank dipping.
+          </p>
+        </div>
+      </>
+    );
+  }
 
   for (const tank of tanks) {
     const latestDipping = await prisma.tankDipping.findFirst({
@@ -96,7 +134,7 @@ export default async function TankDippingPage({
       <PageTitle
         eyebrow="Forecourt Operations"
         title="Tank Dipping"
-        subtitle={`${station.name} · ${formattedDate}`}
+        subtitle={`${station.name} - ${formattedDate}`}
       />
 
       <TankDippingClient

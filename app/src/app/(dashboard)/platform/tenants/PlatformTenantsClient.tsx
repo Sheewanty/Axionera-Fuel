@@ -272,6 +272,10 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
               <span className="form-label">Owner Temporary Password *</span>
               <input className="form-input" name="ownerPassword" type="password" minLength={8} required />
             </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--ax-blue)", fontWeight: 700 }}>
+              <input type="checkbox" name="forcePasswordChange" value="true" defaultChecked />
+              Force password change at first login
+            </label>
             <label className="form-group">
               <span className="form-label">First Station Name</span>
               <input className="form-input" name="stationName" />

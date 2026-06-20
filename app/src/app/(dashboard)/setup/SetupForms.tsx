@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Edit } from "lucide-react";
+import Modal from "@/components/ui/Modal";
 import {
   createUserMembershipAction,
   createTenantAction,
@@ -23,6 +25,33 @@ type ActionResponse = {
 type Option = {
   id: string;
   name: string;
+};
+
+type TankRow = {
+  id: string;
+  name: string;
+  productId: string;
+  productName: string;
+  capacityLitres: number;
+  status: string;
+  createdAt: string;
+};
+
+type NozzleRow = {
+  id: string;
+  name: string;
+  pumpId: string;
+  productId: string;
+  productName: string;
+  meterCode: string | null;
+  status: string;
+};
+
+type PumpRow = {
+  id: string;
+  name: string;
+  status: string;
+  nozzles: NozzleRow[];
 };
 
 type Company = {
@@ -197,6 +226,10 @@ export function TenantCreationForm() {
             <label className="form-label">Owner Temporary Password</label>
             <input className="form-input" name="ownerPassword" type="password" minLength={8} required />
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--ax-blue)", fontWeight: 700 }}>
+            <input type="checkbox" name="forcePasswordChange" value="true" defaultChecked />
+            Force password change at first login
+          </label>
           <div className="form-group">
             <label className="form-label">First Station Name</label>
             <input className="form-input" name="stationName" placeholder="Main Station" />
@@ -364,6 +397,142 @@ export function TankSetupForm({
   );
 }
 
+export function TankInventoryEditor({
+  stationId,
+  products,
+  tanks,
+  canEdit,
+}: {
+  stationId: string;
+  products: Option[];
+  tanks: TankRow[];
+  canEdit: boolean;
+}) {
+  const form = useSetupSubmit(saveTankAction);
+  const [editTank, setEditTank] = useState<TankRow | null>(null);
+
+  return (
+    <>
+      <div className="dash-panel">
+        <div className="dash-panel-head">
+          <div>
+            <div className="dash-panel-title">Tank Inventory</div>
+          </div>
+        </div>
+        <div className="table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Tank Name</th>
+                <th>Product</th>
+                <th style={{ textAlign: "right" }}>Capacity (Litres)</th>
+                <th>Status</th>
+                <th>Created</th>
+                {canEdit && <th style={{ textAlign: "right" }}>Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {tanks.length === 0 ? (
+                <tr>
+                  <td colSpan={canEdit ? 6 : 5} style={{ textAlign: "center", padding: "2rem", color: "var(--ax-muted)" }}>
+                    No tanks configured for this station yet.
+                  </td>
+                </tr>
+              ) : (
+                tanks.map((tank) => (
+                  <tr key={tank.id}>
+                    <td style={{ fontWeight: 600 }}>{tank.name}</td>
+                    <td>{tank.productName}</td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                      {tank.capacityLitres.toLocaleString()}
+                    </td>
+                    <td>
+                      <span className="status-badge" data-status={tank.status}>
+                        {tank.status === "ACTIVE" ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td>{tank.createdAt}</td>
+                    {canEdit && (
+                      <td style={{ textAlign: "right" }}>
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          style={{ width: 34, height: 34, padding: 0 }}
+                          aria-label={`Edit ${tank.name}`}
+                          onClick={() => {
+                            setEditTank(tank);
+                          }}
+                        >
+                          <Edit size={15} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <Modal
+        open={Boolean(editTank)}
+        title="Edit Tank"
+        onClose={() => setEditTank(null)}
+        size="lg"
+        footer={
+          <>
+            <button type="button" className="btn btn-outline" onClick={() => setEditTank(null)} disabled={form.pending}>
+              Cancel
+            </button>
+            <button type="submit" form="edit-tank-form" className="btn btn-primary" disabled={form.pending}>
+              {form.pending ? "Saving..." : "Save Tank"}
+            </button>
+          </>
+        }
+      >
+        <FormError result={form.result} />
+        {editTank && (
+          <form
+            id="edit-tank-form"
+            onSubmit={form.submit}
+          >
+            <input type="hidden" name="id" value={editTank.id} />
+            <input type="hidden" name="stationId" value={stationId} />
+            <FormGrid>
+              <div className="form-group">
+                <label className="form-label">Tank Name</label>
+                <input className="form-input" name="name" required defaultValue={editTank.name} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Product</label>
+                <select className="form-select" name="productId" required defaultValue={editTank.productId}>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Capacity (Litres)</label>
+                <input className="form-input" name="capacityLitres" type="number" step="0.01" min="0" required defaultValue={editTank.capacityLitres} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Status</label>
+                <select className="form-select" name="status" defaultValue={editTank.status}>
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+              </div>
+            </FormGrid>
+          </form>
+        )}
+      </Modal>
+    </>
+  );
+}
+
 export function PumpNozzleSetupForms({
   stationId,
   products,
@@ -442,6 +611,209 @@ export function PumpNozzleSetupForms({
   );
 }
 
+export function PumpNozzleInventoryEditor({
+  stationId,
+  products,
+  pumps,
+  canEdit,
+}: {
+  stationId: string;
+  products: Option[];
+  pumps: PumpRow[];
+  canEdit: boolean;
+}) {
+  const pumpForm = useSetupSubmit(savePumpAction);
+  const nozzleForm = useSetupSubmit(saveNozzleAction);
+  const [editPump, setEditPump] = useState<PumpRow | null>(null);
+  const [editNozzle, setEditNozzle] = useState<NozzleRow | null>(null);
+
+  if (pumps.length === 0) {
+    return (
+      <div className="dash-panel">
+        <div style={{ padding: "2rem", textAlign: "center", color: "var(--ax-muted)" }}>
+          No pumps configured for this station yet.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {pumps.map((pump) => (
+        <div key={pump.id} className="dash-panel" style={{ marginBottom: "1rem" }}>
+          <div className="dash-panel-head">
+            <div>
+              <div className="dash-panel-title">{pump.name}</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span className="status-badge" data-status={pump.status}>
+                {pump.status === "ACTIVE" ? "Active" : "Inactive"}
+              </span>
+              {canEdit && (
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{ width: 34, height: 34, padding: 0 }}
+                  aria-label={`Edit ${pump.name}`}
+                  onClick={() => setEditPump(pump)}
+                >
+                  <Edit size={15} />
+                </button>
+              )}
+            </div>
+          </div>
+          {pump.nozzles.length === 0 ? (
+            <div style={{ padding: "1rem 1.25rem", color: "var(--ax-muted)", fontSize: "0.875rem" }}>
+              No nozzles assigned to this pump.
+            </div>
+          ) : (
+            <div className="table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Nozzle</th>
+                    <th>Product</th>
+                    <th>Meter Code</th>
+                    <th>Status</th>
+                    {canEdit && <th style={{ textAlign: "right" }}>Actions</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {pump.nozzles.map((nozzle) => (
+                    <tr key={nozzle.id}>
+                      <td style={{ fontWeight: 600 }}>{nozzle.name}</td>
+                      <td>{nozzle.productName}</td>
+                      <td>{nozzle.meterCode ?? <span style={{ color: "var(--ax-muted)" }}>-</span>}</td>
+                      <td>
+                        <span className="status-badge" data-status={nozzle.status}>
+                          {nozzle.status === "ACTIVE" ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      {canEdit && (
+                        <td style={{ textAlign: "right" }}>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            style={{ width: 34, height: 34, padding: 0 }}
+                            aria-label={`Edit ${nozzle.name}`}
+                            onClick={() => setEditNozzle(nozzle)}
+                          >
+                            <Edit size={15} />
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <Modal
+        open={Boolean(editPump)}
+        title="Edit Pump"
+        onClose={() => setEditPump(null)}
+        size="md"
+        footer={
+          <>
+            <button type="button" className="btn btn-outline" onClick={() => setEditPump(null)} disabled={pumpForm.pending}>
+              Cancel
+            </button>
+            <button type="submit" form="edit-pump-form" className="btn btn-primary" disabled={pumpForm.pending}>
+              {pumpForm.pending ? "Saving..." : "Save Pump"}
+            </button>
+          </>
+        }
+      >
+        <FormError result={pumpForm.result} />
+        {editPump && (
+          <form id="edit-pump-form" onSubmit={pumpForm.submit}>
+            <input type="hidden" name="id" value={editPump.id} />
+            <input type="hidden" name="stationId" value={stationId} />
+            <FormGrid>
+              <div className="form-group">
+                <label className="form-label">Pump Name</label>
+                <input className="form-input" name="name" required defaultValue={editPump.name} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Status</label>
+                <select className="form-select" name="status" defaultValue={editPump.status}>
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+              </div>
+            </FormGrid>
+          </form>
+        )}
+      </Modal>
+
+      <Modal
+        open={Boolean(editNozzle)}
+        title="Edit Nozzle"
+        onClose={() => setEditNozzle(null)}
+        size="lg"
+        footer={
+          <>
+            <button type="button" className="btn btn-outline" onClick={() => setEditNozzle(null)} disabled={nozzleForm.pending}>
+              Cancel
+            </button>
+            <button type="submit" form="edit-nozzle-form" className="btn btn-primary" disabled={nozzleForm.pending}>
+              {nozzleForm.pending ? "Saving..." : "Save Nozzle"}
+            </button>
+          </>
+        }
+      >
+        <FormError result={nozzleForm.result} />
+        {editNozzle && (
+          <form id="edit-nozzle-form" onSubmit={nozzleForm.submit}>
+            <input type="hidden" name="id" value={editNozzle.id} />
+            <input type="hidden" name="stationId" value={stationId} />
+            <FormGrid>
+              <div className="form-group">
+                <label className="form-label">Pump</label>
+                <select className="form-select" name="pumpId" required defaultValue={editNozzle.pumpId}>
+                  {pumps.map((pump) => (
+                    <option key={pump.id} value={pump.id}>
+                      {pump.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Nozzle Name</label>
+                <input className="form-input" name="name" required defaultValue={editNozzle.name} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Product</label>
+                <select className="form-select" name="productId" required defaultValue={editNozzle.productId}>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Meter Code</label>
+                <input className="form-input" name="meterCode" defaultValue={editNozzle.meterCode ?? ""} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Status</label>
+                <select className="form-select" name="status" defaultValue={editNozzle.status}>
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+              </div>
+            </FormGrid>
+          </form>
+        )}
+      </Modal>
+    </>
+  );
+}
+
 export function UserSetupForm({ stations }: { stations: Option[] }) {
   const form = useSetupSubmit(createUserMembershipAction);
 
@@ -462,6 +834,10 @@ export function UserSetupForm({ stations }: { stations: Option[] }) {
             <label className="form-label">Temporary Password</label>
             <input className="form-input" name="password" type="password" minLength={8} required />
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--ax-blue)", fontWeight: 700 }}>
+            <input type="checkbox" name="forcePasswordChange" value="true" defaultChecked />
+            Force password change at first login
+          </label>
           <div className="form-group">
             <label className="form-label">Role</label>
             <select className="form-select" name="role" defaultValue="ATTENDANT">

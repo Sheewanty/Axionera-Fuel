@@ -15,7 +15,17 @@ export default async function ProductDischargePage({
   const targetStationId = await resolveOrRedirectStation(session, params.stationId, "/forecourt/product-discharge");
 
   if (!targetStationId) {
-    return <div>Error: No stations available for this account.</div>;
+    return (
+      <>
+        <PageTitle eyebrow="Forecourt Operations" title="Product Discharge" />
+        <div className="dash-panel" style={{ padding: 24 }}>
+          <div className="dash-panel-title">No Stations Configured</div>
+          <p style={{ color: "var(--ax-muted)", marginTop: 8 }}>
+            Create at least one station and configure tanks before recording product discharges.
+          </p>
+        </div>
+      </>
+    );
   }
 
   await requireWriteAccess(session, { targetStationId });
@@ -44,6 +54,8 @@ export default async function ProductDischargePage({
       </div>
     );
   }
+
+  const formattedDate = formatDisplayDate(dailySession.businessDate);
 
   const dischargesDb = await prisma.productDischarge.findMany({
     where: { dailySessionId: dailySession.id, tenantId: session.user.tenantId },
@@ -95,6 +107,24 @@ export default async function ProductDischargePage({
     productName: t.product.name,
   }));
 
+  if (tanks.length === 0) {
+    return (
+      <>
+        <PageTitle
+          eyebrow="Forecourt Operations"
+          title="Product Discharge"
+          subtitle={`${station.name} - ${formattedDate} - ${dailySession.shift} Shift`}
+        />
+        <div className="dash-panel" style={{ padding: 24 }}>
+          <div className="dash-panel-title">No Tanks Configured</div>
+          <p style={{ color: "var(--ax-muted)", marginTop: 8 }}>
+            Add station tanks under Setup before recording product discharges.
+          </p>
+        </div>
+      </>
+    );
+  }
+
   const supervisorMemberships = await prisma.membership.findMany({
     where: {
       tenantId: session.user.tenantId,
@@ -109,14 +139,12 @@ export default async function ProductDischargePage({
     new Map(supervisorMemberships.map((membership) => [membership.user.id, membership.user.name])).entries()
   ).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 
-  const formattedDate = formatDisplayDate(dailySession.businessDate);
-
   return (
     <>
       <PageTitle
         eyebrow="Forecourt Operations"
         title="Product Discharge"
-        subtitle={`${station.name} · ${formattedDate} · ${dailySession.shift} Shift`}
+        subtitle={`${station.name} - ${formattedDate} - ${dailySession.shift} Shift`}
       />
 
       <ProductDischargeClient

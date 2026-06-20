@@ -94,13 +94,14 @@ export default async function UsersPage() {
                 <th>Role</th>
                 <th>Station Assignment</th>
                 <th>Status</th>
+                <th>Password</th>
                 <th>Joined</th>
               </tr>
             </thead>
             <tbody>
               {sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: "center", padding: "2rem", color: "var(--ax-muted)" }}>
+                  <td colSpan={7} style={{ textAlign: "center", padding: "2rem", color: "var(--ax-muted)" }}>
                     No users configured yet.
                   </td>
                 </tr>
@@ -122,6 +123,11 @@ export default async function UsersPage() {
                     <td>
                       <span className="status-badge" data-status={membership.user.status}>
                         {membership.user.status === "ACTIVE" ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="status-badge" data-status={membership.user.forcePasswordChange ? "PENDING" : "ACTIVE"}>
+                        {membership.user.forcePasswordChange ? "Change required" : "Set"}
                       </span>
                     </td>
                     <td>{formatDisplayDate(membership.createdAt)}</td>

@@ -64,7 +64,7 @@ export default async function ProductsPage({
       <PageTitle
         eyebrow="Setup"
         title="Products & Prices"
-        subtitle={station ? `${station.name} · ${products.length} product${products.length !== 1 ? "s" : ""}` : undefined}
+        subtitle={station ? `${station.name} - ${products.length} product${products.length !== 1 ? "s" : ""}` : undefined}
       />
 
       {["OWNER", "ADMIN"].includes(session.user.role) && (

@@ -3,7 +3,7 @@ import { getRequiredSession, requireRole, requireStationScope } from "@/lib/sess
 import { prisma } from "@/lib/db/prisma";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
 import { formatDisplayDate } from "@/lib/business-date";
-import { TankSetupForm } from "../SetupForms";
+import { TankInventoryEditor, TankSetupForm } from "../SetupForms";
 
 export default async function TanksPage({
   searchParams,
@@ -55,58 +55,27 @@ export default async function TanksPage({
       <PageTitle
         eyebrow="Setup"
         title="Tanks"
-        subtitle={station ? `${station.name} · ${tanks.length} tank${tanks.length !== 1 ? "s" : ""} · ${totalCapacity.toLocaleString()} L total capacity` : undefined}
+        subtitle={station ? `${station.name} - ${tanks.length} tank${tanks.length !== 1 ? "s" : ""} - ${totalCapacity.toLocaleString()} L total capacity` : undefined}
       />
 
       {["OWNER", "ADMIN"].includes(session.user.role) && (
         <TankSetupForm stationId={stationId} products={products} />
       )}
 
-      <div className="dash-panel">
-        <div className="dash-panel-head">
-          <div>
-            <div className="dash-panel-title">Tank Inventory</div>
-          </div>
-        </div>
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Tank Name</th>
-                <th>Product</th>
-                <th style={{ textAlign: "right" }}>Capacity (Litres)</th>
-                <th>Status</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tanks.length === 0 ? (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: "center", padding: "2rem", color: "var(--ax-muted)" }}>
-                    No tanks configured for this station yet.
-                  </td>
-                </tr>
-              ) : (
-                tanks.map((tank) => (
-                  <tr key={tank.id}>
-                    <td style={{ fontWeight: 600 }}>{tank.name}</td>
-                    <td>{tank.product.name}</td>
-                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                      {Number(tank.capacityLitres).toLocaleString()}
-                    </td>
-                    <td>
-                      <span className="status-badge" data-status={tank.status}>
-                        {tank.status === "ACTIVE" ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td>{formatDisplayDate(tank.createdAt)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <TankInventoryEditor
+        stationId={stationId}
+        products={products}
+        tanks={tanks.map((tank) => ({
+          id: tank.id,
+          name: tank.name,
+          productId: tank.productId,
+          productName: tank.product.name,
+          capacityLitres: Number(tank.capacityLitres),
+          status: tank.status,
+          createdAt: formatDisplayDate(tank.createdAt),
+        }))}
+        canEdit={["OWNER", "ADMIN"].includes(session.user.role)}
+      />
     </>
   );
 }

@@ -30,6 +30,7 @@ const platformTenantSchema = z.object({
   ownerName: z.string().trim().min(2, "Owner name is required"),
   ownerEmail: z.string().trim().email("Owner email must be valid").toLowerCase(),
   ownerPassword: z.string().min(8, "Owner password must be at least 8 characters"),
+  forcePasswordChange: z.coerce.boolean().default(false),
   stationName: z.string().trim().optional().or(z.literal("")),
   stationCode: z.string().trim().optional().or(z.literal("")),
   stationLocation: z.string().trim().optional().or(z.literal("")),
@@ -131,6 +132,7 @@ export async function createPlatformTenantAction(formData: FormData): Promise<Ac
           passwordHash,
           avatarInitials: initials(data.ownerName),
           status: "ACTIVE",
+          forcePasswordChange: data.forcePasswordChange,
         },
       });
 

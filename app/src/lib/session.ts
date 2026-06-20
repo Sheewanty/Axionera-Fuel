@@ -26,6 +26,7 @@ export type AuthSession = Session & {
     role: string;
     membershipStationId: string;
     activeStationId: string | null;
+    forcePasswordChange: boolean;
     name?: string | null;
     email?: string | null;
     image?: string | null;

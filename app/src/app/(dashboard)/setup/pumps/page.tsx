@@ -1,8 +1,8 @@
 import PageTitle from "@/components/ui/PageTitle";
-import { getRequiredSession, requireRole, requireStationScope } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
+import { getRequiredSession, requireRole, requireStationScope } from "@/lib/session";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
-import { PumpNozzleSetupForms } from "../SetupForms";
+import { PumpNozzleInventoryEditor, PumpNozzleSetupForms } from "../SetupForms";
 
 export default async function PumpsPage({
   searchParams,
@@ -21,7 +21,7 @@ export default async function PumpsPage({
         <PageTitle eyebrow="Setup" title="Pumps & Nozzles" />
         <div className="dash-panel">
           <div style={{ padding: "2rem", textAlign: "center", color: "var(--ax-muted)" }}>
-            No stations available for this account.
+            No stations available yet. Create a station before adding pumps and nozzles.
           </div>
         </div>
       </>
@@ -46,7 +46,7 @@ export default async function PumpsPage({
     },
   });
 
-  const totalNozzles = pumps.reduce((sum, p) => sum + p.nozzles.length, 0);
+  const totalNozzles = pumps.reduce((sum, pump) => sum + pump.nozzles.length, 0);
 
   const products = await prisma.product.findMany({
     where: { tenantId: session.user.tenantId, isActive: true },
@@ -59,7 +59,11 @@ export default async function PumpsPage({
       <PageTitle
         eyebrow="Setup"
         title="Pumps & Nozzles"
-        subtitle={station ? `${station.name} · ${pumps.length} pump${pumps.length !== 1 ? "s" : ""}, ${totalNozzles} nozzle${totalNozzles !== 1 ? "s" : ""}` : undefined}
+        subtitle={
+          station
+            ? `${station.name} - ${pumps.length} pump${pumps.length !== 1 ? "s" : ""}, ${totalNozzles} nozzle${totalNozzles !== 1 ? "s" : ""}`
+            : undefined
+        }
       />
 
       {["OWNER", "ADMIN"].includes(session.user.role) && (
@@ -70,58 +74,25 @@ export default async function PumpsPage({
         />
       )}
 
-      {pumps.length === 0 ? (
-        <div className="dash-panel">
-          <div style={{ padding: "2rem", textAlign: "center", color: "var(--ax-muted)" }}>
-            No pumps configured for this station yet.
-          </div>
-        </div>
-      ) : (
-        pumps.map((pump) => (
-          <div key={pump.id} className="dash-panel" style={{ marginBottom: "1rem" }}>
-            <div className="dash-panel-head">
-              <div>
-                <div className="dash-panel-title">{pump.name}</div>
-              </div>
-              <span className="status-badge" data-status={pump.status}>
-                {pump.status === "ACTIVE" ? "Active" : "Inactive"}
-              </span>
-            </div>
-            {pump.nozzles.length === 0 ? (
-              <div style={{ padding: "1rem 1.25rem", color: "var(--ax-muted)", fontSize: "0.875rem" }}>
-                No nozzles assigned to this pump.
-              </div>
-            ) : (
-              <div className="table-wrapper">
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Nozzle</th>
-                      <th>Product</th>
-                      <th>Meter Code</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pump.nozzles.map((nozzle) => (
-                      <tr key={nozzle.id}>
-                        <td style={{ fontWeight: 600 }}>{nozzle.name}</td>
-                        <td>{nozzle.product.name}</td>
-                        <td>{nozzle.meterCode ?? <span style={{ color: "var(--ax-muted)" }}>—</span>}</td>
-                        <td>
-                          <span className="status-badge" data-status={nozzle.status}>
-                            {nozzle.status === "ACTIVE" ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        ))
-      )}
+      <PumpNozzleInventoryEditor
+        stationId={stationId}
+        products={products}
+        pumps={pumps.map((pump) => ({
+          id: pump.id,
+          name: pump.name,
+          status: pump.status,
+          nozzles: pump.nozzles.map((nozzle) => ({
+            id: nozzle.id,
+            name: nozzle.name,
+            pumpId: pump.id,
+            productId: nozzle.productId,
+            productName: nozzle.product.name,
+            meterCode: nozzle.meterCode,
+            status: nozzle.status,
+          })),
+        }))}
+        canEdit={["OWNER", "ADMIN"].includes(session.user.role)}
+      />
     </>
   );
 }

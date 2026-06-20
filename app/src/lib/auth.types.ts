@@ -24,6 +24,7 @@ declare module "next-auth" {
       role: string;
       membershipStationId: string; // "" = tenant-wide
       activeStationId: string | null;
+      forcePasswordChange: boolean;
     } & DefaultSession["user"];
   }
 
@@ -32,6 +33,7 @@ declare module "next-auth" {
     role: string;
     membershipStationId: string;
     activeStationId: string | null;
+    forcePasswordChange: boolean;
   }
 }
 
@@ -43,5 +45,6 @@ declare module "@auth/core/jwt" {
     role: string;
     membershipStationId: string;
     activeStationId: string | null;
+    forcePasswordChange: boolean;
   }
 }

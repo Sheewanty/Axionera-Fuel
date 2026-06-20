@@ -69,7 +69,7 @@ export default async function LubeBaySetupPage({
       <PageTitle
         eyebrow="Setup"
         title="Lube Bay Setup"
-        subtitle={station ? `${station.name} · service types, products, and prices` : undefined}
+        subtitle={station ? `${station.name} - service types, products, and prices` : undefined}
       />
 
       {["OWNER", "ADMIN", "STATION_MANAGER"].includes(session.user.role) ? (

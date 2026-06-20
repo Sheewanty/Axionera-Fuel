@@ -97,7 +97,7 @@ export default async function CompanyPage() {
               <tr>
                 <td style={{ fontWeight: 600 }}>Configured Limits</td>
                 <td>
-                  {tenant.maxStations} stations · {tenant.maxTanks} tanks · {tenant.maxPumps} pumps
+                  {tenant.maxStations} stations - {tenant.maxTanks} tanks - {tenant.maxPumps} pumps
                 </td>
               </tr>
               <tr>

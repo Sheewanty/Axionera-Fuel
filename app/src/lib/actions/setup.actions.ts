@@ -46,6 +46,7 @@ const createTenantSchema = z.object({
   ownerName: z.string().trim().min(2, "Owner name is required"),
   ownerEmail: z.string().trim().email("Owner email must be valid").toLowerCase(),
   ownerPassword: z.string().min(8, "Owner password must be at least 8 characters"),
+  forcePasswordChange: z.coerce.boolean().default(false),
   stationName: z.string().trim().optional().or(z.literal("")),
   stationCode: z.string().trim().optional().or(z.literal("")),
   stationLocation: z.string().trim().optional().or(z.literal("")),
@@ -122,6 +123,7 @@ const userSchema = z.object({
   name: z.string().trim().min(2, "Name is required"),
   email: z.string().trim().email("Email must be valid").toLowerCase(),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  forcePasswordChange: z.coerce.boolean().default(false),
   role: roleSchema,
   stationId: z.string().optional().default(""),
   status: statusSchema.default("ACTIVE"),
@@ -283,6 +285,7 @@ export async function createTenantAction(formData: FormData): Promise<ActionResp
           passwordHash,
           avatarInitials: initials(data.ownerName),
           status: "ACTIVE",
+          forcePasswordChange: data.forcePasswordChange,
         },
       });
 
@@ -750,6 +753,7 @@ export async function createUserMembershipAction(formData: FormData): Promise<Ac
           name: data.name,
           status: data.status,
           passwordHash,
+          forcePasswordChange: data.forcePasswordChange,
           avatarInitials: initials(data.name),
         },
         create: {
@@ -757,6 +761,7 @@ export async function createUserMembershipAction(formData: FormData): Promise<Ac
           name: data.name,
           status: data.status,
           passwordHash,
+          forcePasswordChange: data.forcePasswordChange,
           avatarInitials: initials(data.name),
         },
       });

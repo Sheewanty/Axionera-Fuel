@@ -74,6 +74,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             role: "SUPER_ADMIN",
             membershipStationId: "",
             activeStationId: null,
+            forcePasswordChange: user.forcePasswordChange,
           };
         }
 
@@ -107,6 +108,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           role: membership.role,
           membershipStationId: membership.stationId,
           activeStationId,
+          forcePasswordChange: user.forcePasswordChange,
         };
       },
     }),
@@ -124,6 +126,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = user.role;
         token.membershipStationId = user.membershipStationId;
         token.activeStationId = user.activeStationId;
+        token.forcePasswordChange = user.forcePasswordChange;
       }
       return token;
     },
@@ -137,6 +140,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.role = token.role as string;
       session.user.membershipStationId = token.membershipStationId as string;
       session.user.activeStationId = token.activeStationId as string | null;
+      session.user.forcePasswordChange = Boolean(token.forcePasswordChange);
       return session;
     },
   },

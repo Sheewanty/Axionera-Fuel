@@ -15,7 +15,17 @@ export default async function PumpReadingsPage({
   const targetStationId = await resolveOrRedirectStation(session, params.stationId, "/forecourt/pump-readings");
 
   if (!targetStationId) {
-    return <div>Error: No stations available for this account.</div>;
+    return (
+      <>
+        <PageTitle eyebrow="Forecourt Operations" title="Pump Readings" />
+        <div className="dash-panel" style={{ padding: 24 }}>
+          <div className="dash-panel-title">No Stations Configured</div>
+          <p style={{ color: "var(--ax-muted)", marginTop: 8 }}>
+            Create at least one station, then add pumps and nozzles before recording pump readings.
+          </p>
+        </div>
+      </>
+    );
   }
 
   // Verify access
@@ -37,7 +47,17 @@ export default async function PumpReadingsPage({
   });
 
   if (!dailySession) {
-    return <div>No active session for this station</div>;
+    return (
+      <>
+        <PageTitle eyebrow="Forecourt Operations" title="Pump Readings" subtitle={station.name} />
+        <div className="dash-panel" style={{ padding: 24 }}>
+          <div className="dash-panel-title">No Open Daily Session</div>
+          <p style={{ color: "var(--ax-muted)", marginTop: 8 }}>
+            Open today&apos;s daily session before recording pump readings.
+          </p>
+        </div>
+      </>
+    );
   }
 
   // 2. Fetch all Nozzles (with Pump and Product)
@@ -70,6 +90,24 @@ export default async function PumpReadingsPage({
       : 0,
     previousMeter: 0,
   }));
+
+  if (nozzles.length === 0) {
+    return (
+      <>
+        <PageTitle
+          eyebrow="Forecourt Operations"
+          title="Pump Readings"
+          subtitle={`${station.name} - ${formatDisplayDate(dailySession.businessDate)} - ${dailySession.shift} Shift`}
+        />
+        <div className="dash-panel" style={{ padding: 24 }}>
+          <div className="dash-panel-title">No Pumps or Nozzles Configured</div>
+          <p style={{ color: "var(--ax-muted)", marginTop: 8 }}>
+            Add pumps and nozzles under Setup before recording pump readings.
+          </p>
+        </div>
+      </>
+    );
+  }
 
   // Fetch the latest reading for each nozzle to determine previousMeter
   for (const nozzle of nozzles) {
@@ -116,7 +154,7 @@ export default async function PumpReadingsPage({
       <PageTitle
         eyebrow="Forecourt Operations"
         title="Pump Readings"
-        subtitle={`${station.name} · ${formattedDate} · ${dailySession.shift} Shift`}
+        subtitle={`${station.name} - ${formattedDate} - ${dailySession.shift} Shift`}
       />
 
       <PumpReadingsClient
