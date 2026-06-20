@@ -37,6 +37,7 @@ type Entry = {
 type Props = {
   mode: "setup" | "transactions";
   stationId: string;
+  stationName: string;
   dailySessionId: string | null;
   sessionWritable: boolean;
   creditors: Creditor[];
@@ -88,6 +89,7 @@ function ErrorBlock({
 
 export default function CreditorsClient({
   stationId,
+  stationName,
   mode,
   dailySessionId,
   sessionWritable,
@@ -290,6 +292,19 @@ export default function CreditorsClient({
         }
       >
         <ErrorBlock error={error} fieldErrors={fieldErrors} />
+        <div
+          style={{
+            border: "1px solid var(--ax-border)",
+            borderRadius: 8,
+            color: "var(--ax-muted)",
+            fontSize: 14,
+            fontWeight: 700,
+            marginBottom: 14,
+            padding: "10px 12px",
+          }}
+        >
+          Station: <span style={{ color: "var(--ax-blue)" }}>{stationName}</span>
+        </div>
         <form id="creditor-form" onSubmit={handleCreditorSubmit}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <label className="form-group">
@@ -335,6 +350,19 @@ export default function CreditorsClient({
         }
       >
         <ErrorBlock error={error} fieldErrors={fieldErrors} />
+        <div
+          style={{
+            border: "1px solid var(--ax-border)",
+            borderRadius: 8,
+            color: "var(--ax-muted)",
+            fontSize: 14,
+            fontWeight: 700,
+            marginBottom: 14,
+            padding: "10px 12px",
+          }}
+        >
+          Station: <span style={{ color: "var(--ax-blue)" }}>{stationName}</span>
+        </div>
         <form id="creditor-entry-form" onSubmit={handleEntrySubmit}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <label className="form-group">

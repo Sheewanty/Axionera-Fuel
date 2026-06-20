@@ -74,6 +74,7 @@ export default async function DebtorsSetupPage({
       <CreditorsClient
         mode="setup"
         stationId={stationId}
+        stationName={station.name}
         dailySessionId={dailySession?.id ?? null}
         sessionWritable
         creditors={creditors.map((creditor) => ({

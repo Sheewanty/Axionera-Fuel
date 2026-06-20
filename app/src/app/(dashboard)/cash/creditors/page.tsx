@@ -88,6 +88,7 @@ export default async function CreditorsPage({
       <CreditorsClient
         mode="transactions"
         stationId={stationId}
+        stationName={station.name}
         dailySessionId={dailySession?.id ?? null}
         sessionWritable={Boolean(sessionWritable)}
         creditors={creditors.map((creditor) => ({
