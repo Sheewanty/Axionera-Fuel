@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -85,6 +85,18 @@ function isItemActive(pathname: string, href: string) {
 const NAV_STORAGE_KEY = "fuelstation_nav_open";
 const PIN_STORAGE_KEY = "fuelstation_sidebar_pinned";
 
+function subscribeToHydration() {
+  return () => {};
+}
+
+function getClientSnapshot() {
+  return true;
+}
+
+function getServerSnapshot() {
+  return false;
+}
+
 interface SidebarProps {
   role: Role;
   fallbackStationId: string | null;
@@ -93,6 +105,7 @@ interface SidebarProps {
 export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const hasHydrated = useSyncExternalStore(subscribeToHydration, getClientSnapshot, getServerSnapshot);
   const navGroups = useMemo(() => filterNavForRole(role), [role]);
 
   const currentStationId = searchParams.get("stationId") ?? fallbackStationId;
@@ -105,27 +118,14 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
   // The empty dep array is intentional: this is a mount-time default only.
   // useLocalStorage will take over from here and ignore subsequent changes.
   const defaultOpen = useMemo(() => {
-    const active = navGroups.find((g) =>
-      g.items.some((item) => isItemActive(pathname, item.href))
-    );
-    return active?.id ?? navGroups[0]?.id ?? null;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally stable — only used as default for useLocalStorage
-
+    return navGroups[0]?.id ?? null;
+  }, [navGroups]); // route-independent default avoids hydration mismatches during redirects
 
   const [openGroupId, setOpenGroupId] = useLocalStorage<string | null>(
     NAV_STORAGE_KEY,
     defaultOpen
   );
 
-  // Derive active group from pathname on each render — no effect needed
-  const activeGroupId = useMemo(() => {
-    const active = navGroups.find((g) =>
-      g.items.some((item) => isItemActive(pathname, item.href))
-    );
-    // If the active group differs from openGroupId, auto-expand it
-    return active?.id ?? null;
-  }, [pathname, navGroups]);
 
   // Open group is user-controlled. If persisted state belongs to another role,
   // fall back to the active route/default group.
@@ -135,7 +135,7 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
       ? navGroups[0]?.id
       : openGroupStillAvailable
         ? openGroupId
-        : activeGroupId ?? navGroups[0]?.id ?? null;
+        : navGroups[0]?.id ?? null;
 
   function toggleGroup(id: string) {
     setOpenGroupId((prev) => (prev === id ? null : id));
@@ -190,7 +190,7 @@ export default function Sidebar({ role, fallbackStationId }: SidebarProps) {
               </div>
               <ul className="nav-group-items">
                 {group.items.map((item) => {
-                  const isActive = isItemActive(pathname, item.href);
+                  const isActive = hasHydrated && isItemActive(pathname, item.href);
                   
                   // Append stationId if item is stationScoped
                   const hrefWithStation = withStationParam(item.href, currentStationId, item.stationScoped);

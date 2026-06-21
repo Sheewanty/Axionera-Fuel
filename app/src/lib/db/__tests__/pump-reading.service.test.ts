@@ -10,8 +10,13 @@ describe("PumpReading Service", () => {
       priceHistory: { findFirst: vi.fn().mockResolvedValue({ pricePerLitre: 20 }) },
       pumpReading: {
         findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([{ litresSold: 500 }]),
         create: vi.fn().mockResolvedValue({ id: "reading_open" }),
         update: vi.fn().mockResolvedValue({ id: "reading_closed" }),
+      },
+      tankDipping: {
+        findMany: vi.fn().mockResolvedValue([]),
+        update: vi.fn(),
       },
       ...overrides,
     };
@@ -51,6 +56,7 @@ describe("PumpReading Service", () => {
           if (orderBy) return Promise.resolve({ currentLitre: 1000 });
           return Promise.resolve(null);
         }),
+        findMany: vi.fn().mockResolvedValue([]),
         create: vi.fn().mockResolvedValue({ id: "reading_open" }),
       },
     });
@@ -82,6 +88,7 @@ describe("PumpReading Service", () => {
           if (orderBy) return Promise.resolve({ currentLitre: 3000 });
           return Promise.resolve(null);
         }),
+        findMany: vi.fn().mockResolvedValue([]),
         create: vi.fn(),
       },
     });
@@ -98,7 +105,14 @@ describe("PumpReading Service", () => {
           previousLitre: 2000,
           isClosingRecorded: false,
         }),
+        findMany: vi.fn().mockResolvedValue([{ litresSold: 500 }]),
         update: vi.fn().mockResolvedValue({ id: "reading_open" }),
+      },
+      tankDipping: {
+        findMany: vi.fn().mockResolvedValue([
+          { id: "dip_1", openingStockLitres: 10000, receiptsLitres: 1000, closingStockLitres: 10500 },
+        ]),
+        update: vi.fn().mockResolvedValue({ id: "dip_1" }),
       },
     });
 
@@ -120,6 +134,13 @@ describe("PumpReading Service", () => {
         isClosingRecorded: true,
         updatedBy: "user_1",
       }),
+    });
+    expect(db.tankDipping.update).toHaveBeenCalledWith({
+      where: { id: "dip_1" },
+      data: {
+        meterSoldLitres: 500,
+        varianceLitres: 0,
+      },
     });
   });
 

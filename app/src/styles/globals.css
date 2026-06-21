@@ -1040,23 +1040,6 @@ h1, h2, h3, h4, h5, h6 {
   margin-top: 6px;
 }
 
-.login-dev-hint {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--ax-border);
-  font-size: 11.5px;
-  color: var(--ax-muted);
-  text-align: center;
-}
-
-.login-dev-hint code {
-  font-family: monospace;
-  background: var(--ax-surface);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 11px;
-}
-
 /* Sign-out button in header */
 .signout-btn {
   background: none;

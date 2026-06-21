@@ -74,6 +74,13 @@ export const NAV_CONFIG: NavGroup[] = [
         stationScoped: false,
         access: { SUPER_ADMIN: "full" },
       },
+      {
+        label: "Tenant Imports",
+        href: "/platform/imports",
+        icon: "database",
+        stationScoped: false,
+        access: { SUPER_ADMIN: "full" },
+      },
     ],
   },
   {

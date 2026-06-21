@@ -6,12 +6,34 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession, requireSuperAdmin } from "@/lib/session";
 import { writeAuditLog } from "@/lib/db/audit.service";
+import { extractXlsxSheetNames, validateImportWorkbookSheets } from "@/lib/import/workbook-validation";
+import { importTenantWorkbook, type TenantImportResult } from "@/lib/import/tenant-import";
 
 type ActionResponse = {
   success: boolean;
   error?: string;
   fieldErrors?: Record<string, string[]>;
   data?: { id: string };
+};
+
+type WorkbookValidationResponse = {
+  success: boolean;
+  error?: string;
+  data?: {
+    fileName: string;
+    fileSize: number;
+    sheetNames: string[];
+    requiredSheets: string[];
+    missingSheets: string[];
+    extraSheets: string[];
+    readyForImport: boolean;
+  };
+};
+
+type WorkbookImportResponse = {
+  success: boolean;
+  error?: string;
+  data?: TenantImportResult;
 };
 
 const subscriptionStatusSchema = z.enum(["TRIAL", "ACTIVE", "SUSPENDED", "CANCELLED"]);
@@ -263,5 +285,94 @@ export async function updatePlatformTenantAction(formData: FormData): Promise<Ac
     return { success: true, data: result };
   } catch (error) {
     return errorResponse(error);
+  }
+}
+
+export async function validateTenantImportWorkbookAction(formData: FormData): Promise<WorkbookValidationResponse> {
+  try {
+    const session = await getRequiredSession();
+    requireSuperAdmin(session);
+
+    const file = formData.get("workbook");
+    if (
+      !file ||
+      typeof file === "string" ||
+      typeof file.name !== "string" ||
+      typeof file.size !== "number" ||
+      typeof file.arrayBuffer !== "function"
+    ) {
+      return { success: false, error: "Please select a valid Excel workbook." };
+    }
+
+    const fileName = file.name;
+    const fileSize = file.size;
+    if (!fileName.toLowerCase().endsWith(".xlsx")) {
+      return { success: false, error: "Only .xlsx workbooks are supported for tenant imports." };
+    }
+    if (fileSize <= 0) {
+      return { success: false, error: "The uploaded workbook is empty." };
+    }
+    if (fileSize > 10 * 1024 * 1024) {
+      return { success: false, error: "Workbook is too large. Keep import files under 10MB." };
+    }
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const sheetNames = extractXlsxSheetNames(buffer);
+    const validation = validateImportWorkbookSheets(sheetNames);
+
+    return {
+      success: true,
+      data: {
+        fileName,
+        fileSize,
+        ...validation,
+      },
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unable to validate workbook.",
+    };
+  }
+}
+
+export async function importTenantWorkbookAction(formData: FormData): Promise<WorkbookImportResponse> {
+  try {
+    const session = await getRequiredSession();
+    requireSuperAdmin(session);
+
+    const file = formData.get("workbook");
+    if (
+      !file ||
+      typeof file === "string" ||
+      typeof file.name !== "string" ||
+      typeof file.size !== "number" ||
+      typeof file.arrayBuffer !== "function"
+    ) {
+      return { success: false, error: "Please select a valid Excel workbook." };
+    }
+
+    const fileName = file.name;
+    if (!fileName.toLowerCase().endsWith(".xlsx")) {
+      return { success: false, error: "Only .xlsx workbooks are supported for tenant imports." };
+    }
+    if (file.size <= 0) {
+      return { success: false, error: "The uploaded workbook is empty." };
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return { success: false, error: "Workbook is too large. Keep import files under 10MB." };
+    }
+
+    const result = await importTenantWorkbook(Buffer.from(await file.arrayBuffer()), session.user.id);
+
+    revalidatePath("/platform");
+    revalidatePath("/platform/subscriptions");
+    revalidatePath("/platform/imports");
+    return { success: true, data: result };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unable to import workbook.",
+    };
   }
 }

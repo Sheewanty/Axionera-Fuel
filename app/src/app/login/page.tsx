@@ -95,7 +95,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <Fuel size={28} strokeWidth={1.5} />
         </div>
 
-        <div className="login-eyebrow">GOIL Ghana Ltd</div>
+        <div className="login-eyebrow">Axionera Global Limited</div>
         <h1 className="login-title">FuelStation OS</h1>
         <p className="login-sub">Sign in to continue</p>
 
@@ -119,7 +119,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               autoComplete="email"
               required
               className="form-input"
-              placeholder="you@goil.com.gh"
+              placeholder="you@company.com"
               autoFocus
             />
           </div>
@@ -144,12 +144,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </button>
         </form>
 
-        {/* Dev hint */}
-        {process.env.NODE_ENV === "development" && (
-          <p className="login-dev-hint">
-            Demo: <code>kwame.mensah@goil.com.gh</code> / <code>goil1234</code>
-          </p>
-        )}
       </div>
     </div>
   );

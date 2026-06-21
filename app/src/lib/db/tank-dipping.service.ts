@@ -5,6 +5,54 @@ import { appendCorrectionNote } from "../corrections";
 
 const LOCKED_SESSION_STATUSES = new Set(["READY_FOR_REVIEW", "APPROVED"]);
 
+async function getSessionProductMeterSold(
+  tenantId: string,
+  dailySessionId: string,
+  productId: string,
+  db: Db
+): Promise<number> {
+  const pumpReadings = await db.pumpReading.findMany({
+    where: { dailySessionId, productId, tenantId, isClosingRecorded: true },
+    select: { litresSold: true },
+  });
+  return pumpReadings.reduce((sum, r) => sum + Number(r.litresSold), 0);
+}
+
+export async function recalculateTankDippingsForSessionProduct(
+  tenantId: string,
+  dailySessionId: string,
+  productId: string,
+  db: Db
+) {
+  const meterSoldLitres = await getSessionProductMeterSold(tenantId, dailySessionId, productId, db);
+  const dippings = await db.tankDipping.findMany({
+    where: { tenantId, dailySessionId, productId },
+    select: {
+      id: true,
+      openingStockLitres: true,
+      receiptsLitres: true,
+      closingStockLitres: true,
+    },
+  });
+
+  await Promise.all(
+    dippings.map((dipping) =>
+      db.tankDipping.update({
+        where: { id: dipping.id },
+        data: {
+          meterSoldLitres,
+          varianceLitres: calcTankVariance(
+            Number(dipping.openingStockLitres),
+            Number(dipping.receiptsLitres),
+            meterSoldLitres,
+            Number(dipping.closingStockLitres)
+          ),
+        },
+      })
+    )
+  );
+}
+
 export async function createTankDipping(
   tenantId: string,
   userId: string,
@@ -47,11 +95,7 @@ export async function createTankDipping(
   const openingStockLitres = latestDipping ? Number(latestDipping.closingStockLitres) : input.openingStockLitres;
 
   // Server-derived meter sold
-  const pumpReadings = await db.pumpReading.findMany({
-    where: { dailySessionId: input.dailySessionId, productId: input.productId, tenantId },
-    select: { litresSold: true },
-  });
-  const meterSoldLitres = pumpReadings.reduce((sum, r) => sum + Number(r.litresSold), 0);
+  const meterSoldLitres = await getSessionProductMeterSold(tenantId, input.dailySessionId, input.productId, db);
 
   const varianceLitres = calcTankVariance(
     openingStockLitres,
@@ -123,11 +167,7 @@ export async function correctTankDipping(
 
   const openingStockLitres = Number(existing.openingStockLitres);
 
-  const pumpReadings = await db.pumpReading.findMany({
-    where: { dailySessionId: input.dailySessionId, productId: input.productId, tenantId },
-    select: { litresSold: true },
-  });
-  const meterSoldLitres = pumpReadings.reduce((sum, r) => sum + Number(r.litresSold), 0);
+  const meterSoldLitres = await getSessionProductMeterSold(tenantId, input.dailySessionId, input.productId, db);
 
   const varianceLitres = calcTankVariance(
     openingStockLitres,

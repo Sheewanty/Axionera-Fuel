@@ -2,6 +2,7 @@ import { Db } from "./types";
 import { ClosePumpReadingInput, CorrectPumpReadingInput, OpenPumpReadingInput } from "../schemas/pump-reading.schema";
 import { calcLitresSold, calcExpectedAmount, calcNozzleVariance } from "../calculations";
 import { appendCorrectionNote } from "../corrections";
+import { recalculateTankDippingsForSessionProduct } from "./tank-dipping.service";
 
 async function validateSessionAndNozzle(
   tenantId: string,
@@ -136,7 +137,7 @@ export async function recordClosingPumpReading(
     amountExpected
   );
 
-  return db.pumpReading.update({
+  const reading = await db.pumpReading.update({
     where: { id: existingReading.id },
     data: {
       currentLitre: input.currentLitre,
@@ -154,6 +155,9 @@ export async function recordClosingPumpReading(
       updatedBy: userId,
     },
   });
+
+  await recalculateTankDippingsForSessionProduct(tenantId, input.dailySessionId, input.productId, db);
+  return reading;
 }
 
 export async function correctPumpReading(
@@ -193,7 +197,7 @@ export async function correctPumpReading(
     amountExpected
   );
 
-  return db.pumpReading.update({
+  const reading = await db.pumpReading.update({
     where: { id: existingReading.id },
     data: {
       currentLitre: input.currentLitre,
@@ -212,4 +216,7 @@ export async function correctPumpReading(
       updatedBy: userId,
     },
   });
+
+  await recalculateTankDippingsForSessionProduct(tenantId, input.dailySessionId, input.productId, db);
+  return reading;
 }
