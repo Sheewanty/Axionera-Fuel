@@ -19,6 +19,7 @@ describe("CashCollection Service", () => {
             status: "OPEN",
             pumpReadings: [{ cashReceived: 1000 }],
             creditorLedger: [{ amount: 100 }],
+            lubeBaySales: [{ cashAmount: 300 }],
             expenditures: [{ amount: 50 }],
             cashCollections: [],
           },
@@ -28,6 +29,7 @@ describe("CashCollection Service", () => {
             status: "OPEN",
             pumpReadings: [{ cashReceived: 2000 }],
             creditorLedger: [],
+            lubeBaySales: [{ cashAmount: 200 }],
             expenditures: [{ amount: 500 }],
             cashCollections: [{ amountToBank: 500 }],
           },
@@ -61,8 +63,8 @@ describe("CashCollection Service", () => {
     }));
     expect(mockDb.cashCollection.create).toHaveBeenNthCalledWith(1, {
       data: expect.objectContaining({
-        amountToBank: 1050,
-        expectedCash: 1050,
+        amountToBank: 1350,
+        expectedCash: 1350,
         variance: 0,
         businessDate: new Date("2026-06-20T00:00:00.000Z"),
         dailySession: { connect: { id: "sess_1" } },
@@ -70,9 +72,9 @@ describe("CashCollection Service", () => {
     });
     expect(mockDb.cashCollection.create).toHaveBeenNthCalledWith(2, {
       data: expect.objectContaining({
-        amountToBank: 750,
-        expectedCash: 1000,
-        variance: -250,
+        amountToBank: 450,
+        expectedCash: 1200,
+        variance: -750,
         businessDate: new Date("2026-06-21T00:00:00.000Z"),
         dailySession: { connect: { id: "sess_2" } },
       }),
@@ -91,6 +93,11 @@ describe("CashCollection Service", () => {
       creditorLedgerEntry: {
         findMany: vi.fn().mockResolvedValue([
           { amount: 200 },
+        ]),
+      },
+      lubeBaySale: {
+        findMany: vi.fn().mockResolvedValue([
+          { cashAmount: 300 },
         ]),
       },
       expenditure: {
@@ -127,25 +134,25 @@ describe("CashCollection Service", () => {
         tenantId: "tenant_1",
         dailySessionId: "sess_1",
         type: "PAYMENT",
-        paymentMethod: { in: ["CASH", "MOMO"] },
+        paymentMethod: "CASH",
       },
       select: { amount: true },
     });
     
-    // total cash received = 8000 pump cash + 200 creditor payments = 8200
+    // total cash received = 8000 pump cash + 200 debtor cash payments + 300 lube bay cash = 8500
     // total actual expenditure = 1000 + 500 = 1500
     // previous banked = 1000
-    // base expected cash = 8200 - 1500 = 6700
-    // remaining expected = 6700 - 1000 = 5700
+    // base expected cash = 8500 - 1500 = 7000
+    // remaining expected = 7000 - 1000 = 6000
     // amount to bank = 5500
-    // variance = 5500 - 5700 = -200
+    // variance = 5500 - 6000 = -500
 
     expect(mockDb.cashCollection.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         tenantId: "tenant_1",
         amountToBank: 5500,
-        expectedCash: 5700,
-        variance: -200,
+        expectedCash: 6000,
+        variance: -500,
       }),
     });
   });
@@ -155,6 +162,7 @@ describe("CashCollection Service", () => {
       dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },
       pumpReading: { findMany: vi.fn().mockResolvedValue([{ cashReceived: 1000 }]) },
       creditorLedgerEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      lubeBaySale: { findMany: vi.fn().mockResolvedValue([]) },
       expenditure: { findMany: vi.fn().mockResolvedValue([]) },
       cashCollection: {
         findFirst: vi.fn().mockResolvedValue(null),
@@ -180,6 +188,7 @@ describe("CashCollection Service", () => {
       dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },
       pumpReading: { findMany: vi.fn().mockResolvedValue([{ cashReceived: 1000 }]) },
       creditorLedgerEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      lubeBaySale: { findMany: vi.fn().mockResolvedValue([]) },
       expenditure: { findMany: vi.fn().mockResolvedValue([]) },
       cashCollection: {
         findFirst: vi.fn().mockResolvedValue(null),
@@ -205,6 +214,7 @@ describe("CashCollection Service", () => {
       dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1", status: "OPEN" }) },
       pumpReading: { findMany: vi.fn().mockResolvedValue([{ cashReceived: 1000 }]) },
       creditorLedgerEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      lubeBaySale: { findMany: vi.fn().mockResolvedValue([]) },
       expenditure: { findMany: vi.fn().mockResolvedValue([]) },
       cashCollection: {
         findUnique: vi.fn().mockResolvedValue({
@@ -241,6 +251,7 @@ describe("CashCollection Service", () => {
       dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },
       pumpReading: { findMany: vi.fn().mockResolvedValue([]) },
       creditorLedgerEntry: { findMany: vi.fn().mockResolvedValue([]) },
+      lubeBaySale: { findMany: vi.fn().mockResolvedValue([]) },
       expenditure: { findMany: vi.fn().mockResolvedValue([]) },
       cashCollection: {
         findFirst: vi.fn().mockResolvedValue({ id: "cash_existing" }),

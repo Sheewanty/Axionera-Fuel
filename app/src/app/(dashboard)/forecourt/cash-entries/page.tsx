@@ -64,6 +64,7 @@ export default async function CashEntriesPage({
 
   const totalCashReceived = pendingCashSessions.reduce((sum, pending) => sum + pending.totalPumpCashReceived, 0);
   const totalDebtorCashReceived = pendingCashSessions.reduce((sum, pending) => sum + pending.totalDebtorCashReceived, 0);
+  const totalLubeBayCashSales = pendingCashSessions.reduce((sum, pending) => sum + pending.totalLubeBayCashSales, 0);
   const totalNetExpenditure = pendingCashSessions.reduce((sum, pending) => sum + pending.totalNetExpenditure, 0);
   const totalBanked = pendingCashSessions.reduce((sum, pending) => sum + pending.totalBanked, 0);
   const currentExpectedCash = pendingCashSessions.reduce((sum, pending) => sum + pending.remainingExpectedCash, 0);
@@ -100,6 +101,7 @@ export default async function CashEntriesPage({
           currentExpectedCash={currentExpectedCash}
           totalCashReceived={totalCashReceived}
           totalDebtorCashReceived={totalDebtorCashReceived}
+          totalLubeBayCashSales={totalLubeBayCashSales}
           totalNetExpenditure={totalNetExpenditure}
           totalBanked={totalBanked}
         />

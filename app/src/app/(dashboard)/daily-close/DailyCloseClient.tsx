@@ -28,6 +28,7 @@ type SummaryProps = {
   totalPumpExpected: number;
   totalPumpVariance: number;
   totalPumpCash: number;
+  totalLubeBayCashSales: number;
   totalHqSettlement: number;
   totalNetExpenditure: number;
   totalMartNetSales: number;
@@ -275,6 +276,10 @@ export default function DailyCloseClient({
             <li className="flex justify-between items-center border-b pb-2">
               <span className="text-gray-600">Pump Physical Cash</span>
               <span className="font-medium">{formatCurrency(summary.totalPumpCash)}</span>
+            </li>
+            <li className="flex justify-between items-center border-b pb-2">
+              <span className="text-gray-600">Lube Bay Cash Sales</span>
+              <span className="font-medium">{formatCurrency(summary.totalLubeBayCashSales)}</span>
             </li>
             <li className="flex justify-between items-center border-b pb-2">
               <span className="text-gray-600">HQ-Direct Sales</span>

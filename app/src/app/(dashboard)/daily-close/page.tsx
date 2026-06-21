@@ -48,6 +48,7 @@ export default async function DailyClosePage({
       expenditures: true,
       martSales: true,
       creditorLedger: true,
+      lubeBaySales: true,
     },
   });
 
@@ -73,6 +74,7 @@ export default async function DailyClosePage({
             totalPumpExpected: 0,
             totalPumpVariance: 0,
             totalPumpCash: 0,
+            totalLubeBayCashSales: 0,
             totalHqSettlement: 0,
             totalNetExpenditure: 0,
             totalMartNetSales: 0,
@@ -94,9 +96,10 @@ export default async function DailyClosePage({
   // 1. Calculate Pump Totals
   const totalLitresSold = dailySession.pumpReadings.reduce((sum, r) => sum + Number(r.litresSold), 0);
   const totalCreditorPayments = dailySession.creditorLedger
-    .filter((entry) => entry.type === "PAYMENT" && (entry.paymentMethod === "CASH" || entry.paymentMethod === "MOMO"))
+    .filter((entry) => entry.type === "PAYMENT" && entry.paymentMethod === "CASH")
     .reduce((sum, entry) => sum + Number(entry.amount), 0);
   const totalPumpCash = dailySession.pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0) + totalCreditorPayments;
+  const totalLubeBayCashSales = dailySession.lubeBaySales.reduce((sum, sale) => sum + Number(sale.cashAmount), 0);
   const totalPumpExpected = dailySession.pumpReadings.reduce((sum, r) => sum + (Number(r.litresSold) * Number(r.pricePerLitre)), 0);
   const totalPumpVariance = dailySession.pumpReadings.reduce((sum, r) => sum + Number(r.variance), 0);
   const totalHqSettlement = dailySession.pumpReadings.reduce((sum, r) => {
@@ -111,7 +114,7 @@ export default async function DailyClosePage({
   const totalNetExpenditure = dailySession.expenditures.reduce((sum, exp) => sum + Number(exp.amount), 0);
   const totalMartNetSales = dailySession.martSales.reduce((sum, sale) => sum + Number(sale.netMartSales), 0);
   const totalMartCashVariance = dailySession.martSales.reduce((sum, sale) => sum + Number(sale.variance), 0);
-  const expectedCash = calcPhysicalCashToBank(totalPumpCash, totalNetExpenditure);
+  const expectedCash = calcPhysicalCashToBank(totalPumpCash + totalLubeBayCashSales, totalNetExpenditure);
   const totalBanked = dailySession.cashCollections.reduce((sum, c) => sum + Number(c.amountToBank), 0);
   const bankingVariance = totalBanked - expectedCash; // Positive = overbanked, Negative = short
 
@@ -142,6 +145,7 @@ export default async function DailyClosePage({
           totalPumpExpected,
           totalPumpVariance,
           totalPumpCash,
+          totalLubeBayCashSales,
           totalHqSettlement,
           totalNetExpenditure,
           totalMartNetSales,

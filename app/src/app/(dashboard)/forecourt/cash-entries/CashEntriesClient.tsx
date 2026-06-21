@@ -32,6 +32,7 @@ type Props = {
   currentExpectedCash: number;
   totalCashReceived: number;
   totalDebtorCashReceived: number;
+  totalLubeBayCashSales: number;
   totalNetExpenditure: number;
   totalBanked: number;
 };
@@ -45,6 +46,7 @@ export default function CashEntriesClient({
   currentExpectedCash,
   totalCashReceived,
   totalDebtorCashReceived,
+  totalLubeBayCashSales,
   totalNetExpenditure,
   totalBanked,
 }: Props) {
@@ -235,8 +237,12 @@ export default function CashEntriesClient({
               <span>{formatCurrency(totalCashReceived)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ax-slate-500)", fontSize: 14, marginTop: 6 }}>
-              <span>Debtor Payments Received</span>
+              <span>Debtor Cash Payments</span>
               <span>+ {formatCurrency(totalDebtorCashReceived)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ax-slate-500)", fontSize: 14, marginTop: 6 }}>
+              <span>Lube Bay Cash Sales</span>
+              <span>+ {formatCurrency(totalLubeBayCashSales)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", color: "var(--ax-slate-500)", fontSize: 14, marginTop: 6 }}>
               <span>Total Net Expenditure</span>

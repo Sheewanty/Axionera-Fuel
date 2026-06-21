@@ -14,6 +14,7 @@ export type PendingCashSession = {
   status: string;
   totalPumpCashReceived: number;
   totalDebtorCashReceived: number;
+  totalLubeBayCashSales: number;
   totalNetExpenditure: number;
   totalBanked: number;
   remainingExpectedCash: number;
@@ -25,7 +26,7 @@ async function getTotalCreditorPayments(tenantId: string, dailySessionId: string
       tenantId,
       dailySessionId,
       type: "PAYMENT",
-      paymentMethod: { in: ["CASH", "MOMO"] },
+      paymentMethod: "CASH",
     },
     select: { amount: true },
   });
@@ -49,10 +50,11 @@ export async function getPendingCashCollectionWindow(
       creditorLedger: {
         where: {
           type: "PAYMENT",
-          paymentMethod: { in: ["CASH", "MOMO"] },
+          paymentMethod: "CASH",
         },
         select: { amount: true },
       },
+      lubeBaySales: { select: { cashAmount: true } },
       expenditures: { select: { amount: true } },
       cashCollections: { select: { amountToBank: true } },
     },
@@ -63,10 +65,11 @@ export async function getPendingCashCollectionWindow(
     .map((session) => {
       const totalPumpCashReceived = session.pumpReadings.reduce((sum, row) => sum + Number(row.cashReceived), 0);
       const totalDebtorCashReceived = session.creditorLedger.reduce((sum, row) => sum + Number(row.amount), 0);
+      const totalLubeBayCashSales = session.lubeBaySales.reduce((sum, row) => sum + Number(row.cashAmount), 0);
       const totalNetExpenditure = session.expenditures.reduce((sum, row) => sum + Number(row.amount), 0);
       const totalBanked = session.cashCollections.reduce((sum, row) => sum + Number(row.amountToBank), 0);
       const expectedCash = calcPhysicalCashToBank(
-        totalPumpCashReceived + totalDebtorCashReceived,
+        totalPumpCashReceived + totalDebtorCashReceived + totalLubeBayCashSales,
         totalNetExpenditure
       );
 
@@ -76,6 +79,7 @@ export async function getPendingCashCollectionWindow(
         status: session.status,
         totalPumpCashReceived,
         totalDebtorCashReceived,
+        totalLubeBayCashSales,
         totalNetExpenditure,
         totalBanked,
         remainingExpectedCash: expectedCash - totalBanked,
@@ -207,7 +211,12 @@ export async function createCashCollection(
   });
   const totalPumpCashReceived = pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0);
   const totalCreditorPayments = await getTotalCreditorPayments(tenantId, input.dailySessionId, db);
-  const totalCashReceived = totalPumpCashReceived + totalCreditorPayments;
+  const lubeBaySales = await db.lubeBaySale.findMany({
+    where: { tenantId, dailySessionId: input.dailySessionId },
+    select: { cashAmount: true },
+  });
+  const totalLubeBayCashSales = lubeBaySales.reduce((sum, sale) => sum + Number(sale.cashAmount), 0);
+  const totalCashReceived = totalPumpCashReceived + totalCreditorPayments + totalLubeBayCashSales;
 
   // Expenditure is now recorded as the actual spent amount only.
   const expenditures = await db.expenditure.findMany({
@@ -302,7 +311,12 @@ export async function correctCashCollection(
   });
   const totalPumpCashReceived = pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0);
   const totalCreditorPayments = await getTotalCreditorPayments(tenantId, input.dailySessionId, db);
-  const totalCashReceived = totalPumpCashReceived + totalCreditorPayments;
+  const lubeBaySales = await db.lubeBaySale.findMany({
+    where: { tenantId, dailySessionId: input.dailySessionId },
+    select: { cashAmount: true },
+  });
+  const totalLubeBayCashSales = lubeBaySales.reduce((sum, sale) => sum + Number(sale.cashAmount), 0);
+  const totalCashReceived = totalPumpCashReceived + totalCreditorPayments + totalLubeBayCashSales;
 
   const expenditures = await db.expenditure.findMany({
     where: { tenantId, dailySessionId: input.dailySessionId },
