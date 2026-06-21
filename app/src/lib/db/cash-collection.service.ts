@@ -1,11 +1,23 @@
 import { CashCollection, Prisma } from "@prisma/client";
 import { Db } from "./types";
-import { CashCollectionInput, CorrectCashCollectionInput } from "../schemas/cash-collection.schema";
+import { CashCollectionInput, CorrectCashCollectionInput, StationCashCollectionInput } from "../schemas/cash-collection.schema";
 import { calcPhysicalCashToBank, calcCashCollectionVariance } from "../calculations";
 import { appendCorrectionNote } from "../corrections";
+import { currentBusinessDate } from "../business-date";
 
-const LOCKED_SESSION_STATUSES = new Set(["READY_FOR_REVIEW", "APPROVED"]);
+const LOCKED_SESSION_STATUSES = new Set(["APPROVED"]);
 const MONEY_EPSILON = 0.005;
+
+export type PendingCashSession = {
+  dailySessionId: string;
+  businessDate: Date;
+  status: string;
+  totalPumpCashReceived: number;
+  totalDebtorCashReceived: number;
+  totalNetExpenditure: number;
+  totalBanked: number;
+  remainingExpectedCash: number;
+};
 
 async function getTotalCreditorPayments(tenantId: string, dailySessionId: string, db: Db): Promise<number> {
   const creditorPayments = await db.creditorLedgerEntry.findMany({
@@ -21,6 +33,57 @@ async function getTotalCreditorPayments(tenantId: string, dailySessionId: string
   return creditorPayments.reduce((sum, payment) => sum + Number(payment.amount), 0);
 }
 
+export async function getPendingCashCollectionWindow(
+  tenantId: string,
+  stationId: string,
+  db: Db
+): Promise<PendingCashSession[]> {
+  const sessions = await db.dailySession.findMany({
+    where: {
+      tenantId,
+      stationId,
+      status: { in: ["OPEN", "REOPENED", "READY_FOR_REVIEW"] },
+    },
+    include: {
+      pumpReadings: { select: { cashReceived: true } },
+      creditorLedger: {
+        where: {
+          type: "PAYMENT",
+          paymentMethod: { in: ["CASH", "MOMO"] },
+        },
+        select: { amount: true },
+      },
+      expenditures: { select: { amount: true } },
+      cashCollections: { select: { amountToBank: true } },
+    },
+    orderBy: [{ businessDate: "asc" }, { openedAt: "asc" }],
+  });
+
+  return sessions
+    .map((session) => {
+      const totalPumpCashReceived = session.pumpReadings.reduce((sum, row) => sum + Number(row.cashReceived), 0);
+      const totalDebtorCashReceived = session.creditorLedger.reduce((sum, row) => sum + Number(row.amount), 0);
+      const totalNetExpenditure = session.expenditures.reduce((sum, row) => sum + Number(row.amount), 0);
+      const totalBanked = session.cashCollections.reduce((sum, row) => sum + Number(row.amountToBank), 0);
+      const expectedCash = calcPhysicalCashToBank(
+        totalPumpCashReceived + totalDebtorCashReceived,
+        totalNetExpenditure
+      );
+
+      return {
+        dailySessionId: session.id,
+        businessDate: session.businessDate,
+        status: session.status,
+        totalPumpCashReceived,
+        totalDebtorCashReceived,
+        totalNetExpenditure,
+        totalBanked,
+        remainingExpectedCash: expectedCash - totalBanked,
+      };
+    })
+    .filter((session) => session.remainingExpectedCash > MONEY_EPSILON);
+}
+
 function assertNewCollectionWithinExpected(amountToBank: number, expectedCashRemaining: number) {
   if (expectedCashRemaining <= MONEY_EPSILON) {
     throw new Error("No remaining expected cash is available for banking. Correct existing cash entries before adding another one.");
@@ -29,6 +92,74 @@ function assertNewCollectionWithinExpected(amountToBank: number, expectedCashRem
   if (amountToBank - expectedCashRemaining > MONEY_EPSILON) {
     throw new Error(`Amount to bank cannot exceed the remaining expected cash of GHS${expectedCashRemaining.toFixed(2)}.`);
   }
+}
+
+export async function createStationCashCollectionSweep(
+  tenantId: string,
+  actorUserId: string,
+  input: StationCashCollectionInput,
+  db: Db
+): Promise<CashCollection[]> {
+  const station = await db.station.findFirst({
+    where: { id: input.stationId, tenantId, status: "ACTIVE" },
+    select: { id: true },
+  });
+  if (!station) {
+    throw new Error("Station was not found for this company");
+  }
+
+  const bankCollectionDate = input.bankCollectionDate ? new Date(input.bankCollectionDate) : currentBusinessDate();
+  const bankCollectionReference = input.bankCollectionReference || null;
+
+  if (bankCollectionReference) {
+    const duplicateReference = await db.cashCollection.findFirst({
+      where: {
+        tenantId,
+        stationId: input.stationId,
+        bankCollectionReference,
+      },
+      select: { id: true },
+    });
+    if (duplicateReference) {
+      throw new Error("This bank collection reference has already been recorded for this station.");
+    }
+  }
+
+  const pendingSessions = await getPendingCashCollectionWindow(tenantId, input.stationId, db);
+  const totalExpectedCashRemaining = pendingSessions.reduce((sum, session) => sum + session.remainingExpectedCash, 0);
+  assertNewCollectionWithinExpected(input.amountToBank, totalExpectedCashRemaining);
+
+  let amountLeftToAllocate = input.amountToBank;
+  const created: CashCollection[] = [];
+
+  for (const session of pendingSessions) {
+    if (amountLeftToAllocate <= MONEY_EPSILON) break;
+
+    const amountForSession = Math.min(amountLeftToAllocate, session.remainingExpectedCash);
+    if (amountForSession <= MONEY_EPSILON) continue;
+
+    const variance = calcCashCollectionVariance(amountForSession, session.remainingExpectedCash);
+    const data: Prisma.CashCollectionCreateInput = {
+      tenantId,
+      amountToBank: amountForSession,
+      bankCollectionDate,
+      bankCollectionReference,
+      expectedCash: session.remainingExpectedCash,
+      variance,
+      bankSignatureName: input.bankSignatureName || null,
+      supervisorSignatureName: input.supervisorSignatureName || null,
+      remarks: input.remarks || null,
+      createdBy: actorUserId,
+      businessDate: session.businessDate,
+      station: { connect: { id: input.stationId } },
+      dailySession: { connect: { id: session.dailySessionId } },
+    };
+
+    created.push(await db.cashCollection.create({ data }));
+    amountLeftToAllocate -= amountForSession;
+  }
+
+  return created;
 }
 
 function assertCorrectionWithinExpected(

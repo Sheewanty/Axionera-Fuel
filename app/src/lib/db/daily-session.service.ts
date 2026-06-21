@@ -107,9 +107,6 @@ export async function closeSession(
   if (session.tankDippings.length === 0) {
     throw new Error("Cannot close session: No tank dippings recorded");
   }
-  if (session.cashCollections.length === 0) {
-    throw new Error("Cannot close session: No cash collections recorded");
-  }
   if (session.martSales.length === 0) {
     throw new Error("Cannot close session: No mart sales summary recorded");
   }

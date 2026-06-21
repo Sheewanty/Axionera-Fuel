@@ -9,14 +9,9 @@ import { correctCashCollectionAction, submitCashCollection } from "@/lib/actions
 import { formatCurrency } from "@/lib/calculations";
 import { formatDisplayDate } from "@/lib/business-date";
 
-type DailySessionProps = {
-  id: string;
-  businessDate: string;
-  shift: string;
-};
-
 type CashCollectionProps = {
   id: string;
+  dailySessionId: string;
   businessDate: string;
   amountToBank: number;
   bankCollectionDate: string | null;
@@ -30,7 +25,9 @@ type CashCollectionProps = {
 
 type Props = {
   station: Station;
-  dailySession: DailySessionProps;
+  collectionDate: string;
+  pendingFromDate: string | null;
+  pendingToDate: string | null;
   cashCollections: CashCollectionProps[];
   currentExpectedCash: number;
   totalCashReceived: number;
@@ -41,7 +38,9 @@ type Props = {
 
 export default function CashEntriesClient({
   station,
-  dailySession,
+  collectionDate,
+  pendingFromDate,
+  pendingToDate,
   cashCollections,
   currentExpectedCash,
   totalCashReceived,
@@ -64,10 +63,10 @@ export default function CashEntriesClient({
     const form = e.currentTarget;
     const formData = new FormData(form);
     formData.append("stationId", station.id);
-    formData.append("dailySessionId", dailySession.id);
-    formData.append("businessDate", dailySession.businessDate);
     if (correctionTarget) {
       formData.append("id", correctionTarget.id);
+      formData.append("dailySessionId", correctionTarget.dailySessionId);
+      formData.append("businessDate", correctionTarget.businessDate);
     }
 
     try {
@@ -113,7 +112,9 @@ export default function CashEntriesClient({
         <div>
           <h2 className="text-xl font-semibold">Active Session</h2>
           <p className="text-gray-600">
-            {station.name} | {formatDisplayDate(dailySession.businessDate)} | Shift: {dailySession.shift}
+            {station.name} | {pendingFromDate && pendingToDate
+              ? `${formatDisplayDate(pendingFromDate)} to ${formatDisplayDate(pendingToDate)}`
+              : "No pending cash window"}
           </p>
         </div>
       </div>
@@ -127,6 +128,7 @@ export default function CashEntriesClient({
             <thead>
               <tr className="bg-gray-100">
                 <th className="p-3 border-b">Time</th>
+                <th className="p-3 border-b">Business Date</th>
                 <th className="p-3 border-b text-right">Expected</th>
                 <th className="p-3 border-b text-right">To Bank</th>
                 <th className="p-3 border-b text-right">Variance</th>
@@ -139,6 +141,7 @@ export default function CashEntriesClient({
               {cashCollections.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="p-3 border-b">...</td>
+                  <td className="p-3 border-b">{formatDisplayDate(c.businessDate)}</td>
                   <td className="p-3 border-b text-right text-gray-600">
                     {formatCurrency(c.expectedCash)}
                   </td>
@@ -246,7 +249,7 @@ export default function CashEntriesClient({
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--ax-border)", marginTop: 10, paddingTop: 10, color: "var(--ax-blue)", fontWeight: 700 }}>
-              <span>Remaining Expected Cash</span>
+            <span>Remaining Expected Cash</span>
               <span>{formatCurrency(currentExpectedCash)}</span>
             </div>
           </div>
@@ -258,7 +261,7 @@ export default function CashEntriesClient({
             </div>
             <div className="form-group">
               <label className="form-label">Bank Collection Date</label>
-              <input type="date" name="bankCollectionDate" className="form-input" defaultValue={correctionTarget?.bankCollectionDate ?? ""} />
+              <input type="date" name="bankCollectionDate" className="form-input" defaultValue={correctionTarget?.bankCollectionDate ?? collectionDate} />
             </div>
             <div className="form-group">
               <label className="form-label">Collection Reference</label>

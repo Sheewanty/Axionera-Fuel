@@ -3,8 +3,8 @@ import { getRequiredSession, requireWriteAccess } from "@/lib/session";
 import { prisma } from "@/lib/db/prisma";
 import { resolveOrRedirectStation } from "@/lib/station-utils";
 import CashEntriesClient from "./CashEntriesClient";
-import { calcPhysicalCashToBank } from "@/lib/calculations";
 import { currentBusinessDate } from "@/lib/business-date";
+import { getPendingCashCollectionWindow } from "@/lib/db/cash-collection.service";
 
 export default async function CashEntriesPage({
   searchParams,
@@ -29,79 +29,49 @@ export default async function CashEntriesPage({
   // Verify access
   await requireWriteAccess(session, { targetStationId });
 
-  // 1. Fetch Station & Daily Session
   const station = await prisma.station.findFirst({
     where: { id: targetStationId, tenantId: session.user.tenantId },
   });
 
-  const dailySession = await prisma.dailySession.findFirst({
-    where: {
-      stationId: targetStationId,
-      tenantId: session.user.tenantId,
-      businessDate: currentBusinessDate(),
-      shift: "DAY",
-      status: { in: ["OPEN", "REOPENED"] },
-    },
-  });
-
-  if (!station || !dailySession) {
+  if (!station) {
     return (
       <div className="p-6">
         <PageTitle title="Cash Entries" />
         <div className="mt-6 bg-white p-6 rounded shadow">
-          <p>No active station or open daily session found. Please open a session first.</p>
+          <p>No active station found.</p>
         </div>
       </div>
     );
   }
 
-  // 2. Fetch existing Cash Collections
+  const pendingCashSessions = await getPendingCashCollectionWindow(session.user.tenantId, targetStationId, prisma);
+
   const cashCollections = await prisma.cashCollection.findMany({
     where: {
       tenantId: session.user.tenantId,
-      dailySessionId: dailySession.id,
+      stationId: targetStationId,
     },
-    orderBy: { createdAt: "asc" },
+    include: {
+      dailySession: {
+        select: {
+          businessDate: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 50,
   });
 
-  // 3. Compute expected cash for the UI
-  const pumpReadings = await prisma.pumpReading.findMany({
-    where: {
-      tenantId: session.user.tenantId,
-      dailySessionId: dailySession.id,
-    },
-    select: { cashReceived: true },
-  });
-  const totalCashReceived = pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0);
-
-  const debtorPayments = await prisma.creditorLedgerEntry.findMany({
-    where: {
-      tenantId: session.user.tenantId,
-      dailySessionId: dailySession.id,
-      type: "PAYMENT",
-      paymentMethod: { in: ["CASH", "MOMO"] },
-    },
-    select: { amount: true },
-  });
-  const totalDebtorCashReceived = debtorPayments.reduce((sum, entry) => sum + Number(entry.amount), 0);
-
-  const expenditures = await prisma.expenditure.findMany({
-    where: {
-      tenantId: session.user.tenantId,
-      dailySessionId: dailySession.id,
-    },
-    select: { amount: true },
-  });
-  const totalNetExpenditure = expenditures.reduce((sum, exp) => sum + Number(exp.amount), 0);
-
-  const expectedCash = calcPhysicalCashToBank(totalCashReceived + totalDebtorCashReceived, totalNetExpenditure);
-  
-  const totalBanked = cashCollections.reduce((sum, c) => sum + Number(c.amountToBank), 0);
-  const currentExpectedCash = expectedCash - totalBanked;
+  const totalCashReceived = pendingCashSessions.reduce((sum, pending) => sum + pending.totalPumpCashReceived, 0);
+  const totalDebtorCashReceived = pendingCashSessions.reduce((sum, pending) => sum + pending.totalDebtorCashReceived, 0);
+  const totalNetExpenditure = pendingCashSessions.reduce((sum, pending) => sum + pending.totalNetExpenditure, 0);
+  const totalBanked = pendingCashSessions.reduce((sum, pending) => sum + pending.totalBanked, 0);
+  const currentExpectedCash = pendingCashSessions.reduce((sum, pending) => sum + pending.remainingExpectedCash, 0);
 
   // Parse types for client component
   const parsedCollections = cashCollections.map(c => ({
     id: c.id,
+    dailySessionId: c.dailySessionId,
     businessDate: c.businessDate.toISOString().split("T")[0],
     amountToBank: Number(c.amountToBank),
     bankCollectionDate: c.bankCollectionDate ? c.bankCollectionDate.toISOString().split("T")[0] : null,
@@ -113,16 +83,19 @@ export default async function CashEntriesPage({
     remarks: c.remarks,
   }));
 
+  const pendingBusinessDates = pendingCashSessions.map((pending) => pending.businessDate);
+  const pendingFromDate = pendingBusinessDates[0]?.toISOString().split("T")[0] ?? null;
+  const pendingToDate = pendingBusinessDates[pendingBusinessDates.length - 1]?.toISOString().split("T")[0] ?? null;
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <PageTitle title="Cash Entries" />
       <div className="mt-6">
         <CashEntriesClient
           station={station}
-          dailySession={{
-            ...dailySession,
-            businessDate: dailySession.businessDate.toISOString().split("T")[0],
-          }}
+          collectionDate={currentBusinessDate().toISOString().split("T")[0]}
+          pendingFromDate={pendingFromDate}
+          pendingToDate={pendingToDate}
           cashCollections={parsedCollections}
           currentExpectedCash={currentExpectedCash}
           totalCashReceived={totalCashReceived}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { correctCashCollection, createCashCollection } from "../cash-collection.service";
+import { correctCashCollection, createCashCollection, createStationCashCollectionSweep } from "../cash-collection.service";
 import { Db } from "../types";
 
 vi.mock("../audit.service", () => ({
@@ -7,6 +7,78 @@ vi.mock("../audit.service", () => ({
 }));
 
 describe("CashCollection Service", () => {
+  it("allocates a station cash sweep across pending sessions oldest first", async () => {
+    let createCount = 0;
+    const mockDb = {
+      station: { findFirst: vi.fn().mockResolvedValue({ id: "st_1" }) },
+      dailySession: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "sess_1",
+            businessDate: new Date("2026-06-20T00:00:00.000Z"),
+            status: "OPEN",
+            pumpReadings: [{ cashReceived: 1000 }],
+            creditorLedger: [{ amount: 100 }],
+            expenditures: [{ amount: 50 }],
+            cashCollections: [],
+          },
+          {
+            id: "sess_2",
+            businessDate: new Date("2026-06-21T00:00:00.000Z"),
+            status: "OPEN",
+            pumpReadings: [{ cashReceived: 2000 }],
+            creditorLedger: [],
+            expenditures: [{ amount: 500 }],
+            cashCollections: [{ amountToBank: 500 }],
+          },
+        ]),
+      },
+      cashCollection: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockImplementation(async () => ({ id: `cash_${++createCount}` })),
+      },
+    };
+
+    const result = await createStationCashCollectionSweep(
+      "tenant_1",
+      "user_1",
+      {
+        stationId: "st_1",
+        amountToBank: 1800,
+        bankCollectionDate: "2026-06-21",
+        bankCollectionReference: "COL-KSI-001",
+      },
+      mockDb as unknown as Db
+    );
+
+    expect(result).toHaveLength(2);
+    expect(mockDb.dailySession.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        tenantId: "tenant_1",
+        stationId: "st_1",
+        status: { in: ["OPEN", "REOPENED", "READY_FOR_REVIEW"] },
+      },
+    }));
+    expect(mockDb.cashCollection.create).toHaveBeenNthCalledWith(1, {
+      data: expect.objectContaining({
+        amountToBank: 1050,
+        expectedCash: 1050,
+        variance: 0,
+        businessDate: new Date("2026-06-20T00:00:00.000Z"),
+        dailySession: { connect: { id: "sess_1" } },
+      }),
+    });
+    expect(mockDb.cashCollection.create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({
+        amountToBank: 750,
+        expectedCash: 1000,
+        variance: -250,
+        businessDate: new Date("2026-06-21T00:00:00.000Z"),
+        dailySession: { connect: { id: "sess_2" } },
+      }),
+    });
+  });
+
   it("computes physical cash to bank and saves cash collection", async () => {
     const mockDb = {
       dailySession: { findUnique: vi.fn().mockResolvedValue({ tenantId: "tenant_1", stationId: "st_1" }) },

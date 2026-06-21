@@ -2,8 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { withMutation } from "../mutation";
-import { cashCollectionSchema, CashCollectionInput, CorrectCashCollectionInput, correctCashCollectionSchema } from "../schemas/cash-collection.schema";
-import { correctCashCollection, createCashCollection } from "../db/cash-collection.service";
+import {
+  CorrectCashCollectionInput,
+  StationCashCollectionInput,
+  correctCashCollectionSchema,
+  stationCashCollectionSchema,
+} from "../schemas/cash-collection.schema";
+import { correctCashCollection, createStationCashCollectionSweep } from "../db/cash-collection.service";
 import { AuthSession } from "../session";
 import { Db } from "../db/types";
 import { CORRECTION_ROLES } from "../corrections";
@@ -25,7 +30,7 @@ function errorResponse(error: unknown): ActionResponse {
 export const submitCashCollection = async (formData: FormData): Promise<ActionResponse> => {
   const rawData = Object.fromEntries(formData.entries());
 
-  const parsed = cashCollectionSchema.safeParse(rawData);
+  const parsed = stationCashCollectionSchema.safeParse(rawData);
   if (!parsed.success) {
     return {
       success: false,
@@ -41,9 +46,9 @@ export const submitCashCollection = async (formData: FormData): Promise<ActionRe
       getStationId: (data) => data.stationId,
       getEntityId: (result) => result?.id ?? "unknown",
     },
-    async (session: AuthSession, tx: Db, data: CashCollectionInput): Promise<ActionResponse> => {
-      const collection = await createCashCollection(session.user.tenantId, session.user.id, data, tx);
-      return { success: true, id: collection.id };
+    async (session: AuthSession, tx: Db, data: StationCashCollectionInput): Promise<ActionResponse> => {
+      const collections = await createStationCashCollectionSweep(session.user.tenantId, session.user.id, data, tx);
+      return { success: true, id: collections.map((collection) => collection.id).join(",") };
     }
   );
 

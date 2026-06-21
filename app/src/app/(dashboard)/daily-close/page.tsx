@@ -94,7 +94,7 @@ export default async function DailyClosePage({
   // 1. Calculate Pump Totals
   const totalLitresSold = dailySession.pumpReadings.reduce((sum, r) => sum + Number(r.litresSold), 0);
   const totalCreditorPayments = dailySession.creditorLedger
-    .filter((entry) => entry.type === "PAYMENT")
+    .filter((entry) => entry.type === "PAYMENT" && (entry.paymentMethod === "CASH" || entry.paymentMethod === "MOMO"))
     .reduce((sum, entry) => sum + Number(entry.amount), 0);
   const totalPumpCash = dailySession.pumpReadings.reduce((sum, r) => sum + Number(r.cashReceived), 0) + totalCreditorPayments;
   const totalPumpExpected = dailySession.pumpReadings.reduce((sum, r) => sum + (Number(r.litresSold) * Number(r.pricePerLitre)), 0);
@@ -119,13 +119,11 @@ export default async function DailyClosePage({
   const canClose = 
     dailySession.pumpReadings.length > 0 && 
     dailySession.tankDippings.length > 0 && 
-    dailySession.cashCollections.length > 0 &&
     dailySession.martSales.length > 0;
 
   const missingRequirements = [];
   if (dailySession.pumpReadings.length === 0) missingRequirements.push("Pump Readings");
   if (dailySession.tankDippings.length === 0) missingRequirements.push("Tank Dipping");
-  if (dailySession.cashCollections.length === 0) missingRequirements.push("Cash Entries");
   if (dailySession.martSales.length === 0) missingRequirements.push("Mart Sales Summary");
 
   return (

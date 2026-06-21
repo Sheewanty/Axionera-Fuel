@@ -15,10 +15,18 @@ export const cashCollectionSchema = z.object({
   remarks: z.string().optional(),
 });
 
+export const stationCashCollectionSchema = cashCollectionSchema.omit({
+  dailySessionId: true,
+  businessDate: true,
+}).extend({
+  amountToBank: z.coerce.number().positive("Amount to bank must be greater than zero"),
+});
+
 export const correctCashCollectionSchema = cashCollectionSchema.extend({
   id: z.string().min(1, "Cash collection ID is required"),
   correctionReason: correctionReasonSchema,
 });
 
 export type CashCollectionInput = z.infer<typeof cashCollectionSchema>;
+export type StationCashCollectionInput = z.infer<typeof stationCashCollectionSchema>;
 export type CorrectCashCollectionInput = z.infer<typeof correctCashCollectionSchema>;
