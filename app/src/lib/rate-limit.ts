@@ -20,8 +20,8 @@
  *     This is not shared across containers and should be replaced with
  *     Upstash before horizontal scaling.
  *
- * Default policy: 5 requests per 15-minute sliding window.
- * This matches the M2 in-memory limiter policy.
+ * Default policy: 10 requests per 15-minute sliding window.
+ * Override with LOGIN_RATE_LIMIT_MAX_REQUESTS and LOGIN_RATE_LIMIT_WINDOW_SECONDS.
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -42,9 +42,21 @@ export class RateLimitConfigError extends Error {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MAX_REQUESTS = 5;
-const WINDOW_SECONDS = 15 * 60; // 15 minutes
-const WINDOW_MS = WINDOW_SECONDS * 1000;
+const DEFAULT_MAX_REQUESTS = 10;
+const DEFAULT_WINDOW_SECONDS = 15 * 60; // 15 minutes
+
+function positiveIntFromEnv(key: string, fallback: number): number {
+  const raw = process.env[key];
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function rateLimitPolicy() {
+  const maxRequests = positiveIntFromEnv("LOGIN_RATE_LIMIT_MAX_REQUESTS", DEFAULT_MAX_REQUESTS);
+  const windowSeconds = positiveIntFromEnv("LOGIN_RATE_LIMIT_WINDOW_SECONDS", DEFAULT_WINDOW_SECONDS);
+  return { maxRequests, windowSeconds, windowMs: windowSeconds * 1000 };
+}
 
 // ─── In-memory implementation (dev / test only) ───────────────────────────────
 
@@ -59,31 +71,32 @@ const memoryStore = new Map<string, MemoryBucket>();
 
 function checkRateLimitMemory(identifier: string): RateLimitResult {
   const now = Date.now();
+  const { maxRequests, windowMs } = rateLimitPolicy();
   const bucket = memoryStore.get(identifier);
 
-  if (!bucket || now - bucket.windowStart > WINDOW_MS) {
+  if (!bucket || now - bucket.windowStart > windowMs) {
     // New window
     memoryStore.set(identifier, { count: 1, windowStart: now });
     return {
       allowed: true,
-      remaining: MAX_REQUESTS - 1,
-      resetAt: now + WINDOW_MS,
+      remaining: maxRequests - 1,
+      resetAt: now + windowMs,
     };
   }
 
-  if (bucket.count >= MAX_REQUESTS) {
+  if (bucket.count >= maxRequests) {
     return {
       allowed: false,
       remaining: 0,
-      resetAt: bucket.windowStart + WINDOW_MS,
+      resetAt: bucket.windowStart + windowMs,
     };
   }
 
   bucket.count += 1;
   return {
     allowed: true,
-    remaining: MAX_REQUESTS - bucket.count,
-    resetAt: bucket.windowStart + WINDOW_MS,
+    remaining: maxRequests - bucket.count,
+    resetAt: bucket.windowStart + windowMs,
   };
 }
 
@@ -114,10 +127,11 @@ async function getUpstashLimiter() {
   // Dynamic import avoids pulling Upstash into the Edge bundle in dev/test
   const { Ratelimit } = await import("@upstash/ratelimit");
   const { Redis } = await import("@upstash/redis");
+  const { maxRequests, windowSeconds } = rateLimitPolicy();
 
   _upstashLimiter = new Ratelimit({
     redis: new Redis({ url, token }),
-    limiter: Ratelimit.slidingWindow(MAX_REQUESTS, `${WINDOW_SECONDS} s`),
+    limiter: Ratelimit.slidingWindow(maxRequests, `${windowSeconds} s`),
     analytics: false,
     prefix: "fuelstation:rl",
   });

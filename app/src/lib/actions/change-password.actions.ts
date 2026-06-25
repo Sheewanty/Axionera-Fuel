@@ -2,7 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
-import { signOut } from "@/lib/auth";
+import { updateSession } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession } from "@/lib/session";
 
@@ -43,5 +43,6 @@ export async function changePasswordAction(formData: FormData) {
     },
   });
 
-  await signOut({ redirectTo: "/login?changed=1" });
+  await updateSession({ user: { forcePasswordChange: false } });
+  redirect("/post-login");
 }

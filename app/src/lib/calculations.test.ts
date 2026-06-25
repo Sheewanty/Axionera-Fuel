@@ -77,6 +77,14 @@ describe("calcTankVariance", () => {
     // opening 5000 + receipts 2000 - meter 1000 - closing 6100 = -100 loss
     expect(calcTankVariance(5000, 2000, 1000, 6100)).toBe(-100);
   });
+  it("deducts approved stock adjustment out such as NPA inspection draw-offs", () => {
+    // Without the 5L draw-off this would show a 5L shortage.
+    // With the draw-off, expected closing is reduced and variance is zero.
+    expect(calcTankVariance(5000, 0, 500, 4495, 0, 5)).toBe(0);
+  });
+  it("adds approved stock adjustment in", () => {
+    expect(calcTankVariance(5000, 0, 500, 4525, 25, 0)).toBe(0);
+  });
 });
 
 describe("calcExpectedTankAfterDischarge", () => {

@@ -49,6 +49,8 @@ GHCR_TOKEN=<github-token-with-read:packages>
 For a one-droplet same-day MVP, `RATE_LIMIT_BACKEND=memory` can be used in
 `.env.production` instead of Upstash. This keeps login working without external
 Redis, but it is single-process only and must be replaced before scaling.
+Use `LOGIN_RATE_LIMIT_MAX_REQUESTS=10` and `LOGIN_RATE_LIMIT_WINDOW_SECONDS=900`
+for the initial client onboarding period unless Upstash limits are configured.
 
 Generate `AUTH_SECRET`:
 

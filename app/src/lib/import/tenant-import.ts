@@ -15,7 +15,7 @@ import {
   calcNozzleVariance,
   calcTankVariance,
 } from "@/lib/calculations";
-import { readXlsxTables, validateImportWorkbookSheets, type WorkbookRow } from "./workbook-validation";
+import { readXlsxTables, validateImportWorkbookRows, validateImportWorkbookSheets, type WorkbookRow } from "./workbook-validation";
 
 const TEMP_PASSWORD = "ChangeMe123!";
 
@@ -35,6 +35,7 @@ type ImportCounts = {
   pumpReadings: number;
   tankDippings: number;
   productDischarges: number;
+  stockAdjustments: number;
   expenditures: number;
   martSales: number;
   lubeBaySales: number;
@@ -69,6 +70,7 @@ function emptyCounts(): ImportCounts {
     pumpReadings: 0,
     tankDippings: 0,
     productDischarges: 0,
+    stockAdjustments: 0,
     expenditures: 0,
     martSales: 0,
     lubeBaySales: 0,
@@ -157,6 +159,10 @@ function sessionKey(stationCode: string, businessDate: Date, shift: string): str
 
 function stationScopedKey(stationCode: string, name: string): string {
   return `${stationCode}|${name}`;
+}
+
+function sessionTankKey(dailySessionId: string, tankId: string): string {
+  return `${dailySessionId}|${tankId}`;
 }
 
 function requireMapValue(map: Map<string, string>, key: string, label: string): string {
@@ -443,8 +449,17 @@ async function createSetupRecords(
 export async function importTenantWorkbook(buffer: Buffer, actorUserId: string): Promise<TenantImportResult> {
   const tables = readXlsxTables(buffer);
   const validation = validateImportWorkbookSheets(Object.keys(tables));
-  if (!validation.readyForImport) {
-    throw new Error(`Workbook is missing required sheets: ${validation.missingSheets.join(", ")}`);
+  const rowValidation = validateImportWorkbookRows(tables);
+  if (!validation.readyForImport || rowValidation.rowErrors.length > 0) {
+    const messages = [
+      validation.missingSheets.length > 0
+        ? `Workbook is missing required sheets: ${validation.missingSheets.join(", ")}`
+        : "",
+      rowValidation.rowErrors.length > 0
+        ? `Workbook has ${rowValidation.rowErrors.length} row validation error(s). Validate the workbook and correct the listed rows before import.`
+        : "",
+    ].filter(Boolean);
+    throw new Error(messages.join(" "));
   }
 
   const counts = emptyCounts();
@@ -453,12 +468,13 @@ export async function importTenantWorkbook(buffer: Buffer, actorUserId: string):
     const setup = await createSetupRecords(tx, tables, actorUserId, counts);
     const { tenant, companyCode, stationIds, productIds, tankIds, pumpIds, nozzleIds, creditorIds, serviceTypeIds } = setup;
     const sessionIds = new Map<string, string>();
+    const stockAdjustmentTotals = new Map<string, { inLitres: number; outLitres: number }>();
 
     for (const row of sheet(tables, "Daily Sessions")) {
       if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
       const stationCode = text(row, "StationCode", true).toUpperCase();
       const businessDate = dateValue(row, "BusinessDate");
-      const shift = statusValue(row, "Shift", "DAY");
+      const shift = statusValue(row, "Shift", "DAY").toUpperCase();
       const session = await tx.dailySession.create({
         data: {
           tenantId: tenant.id,
@@ -478,7 +494,7 @@ export async function importTenantWorkbook(buffer: Buffer, actorUserId: string):
       if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
       const stationCode = text(row, "StationCode", true).toUpperCase();
       const businessDate = dateValue(row, "BusinessDate");
-      const shift = statusValue(row, "Shift", "DAY");
+      const shift = statusValue(row, "Shift", "DAY").toUpperCase();
       const opening = numberValue(row, "OpeningMeter");
       const closing = numberValue(row, "ClosingMeter");
       const litresSold = calcLitresSold(closing, opening);
@@ -519,11 +535,57 @@ export async function importTenantWorkbook(buffer: Buffer, actorUserId: string):
       counts.pumpReadings += 1;
     }
 
+    for (const row of sheet(tables, "Stock Adjustments")) {
+      if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
+      const stationCode = text(row, "StationCode", true).toUpperCase();
+      const businessDate = dateValue(row, "BusinessDate");
+      const shift = statusValue(row, "Shift", "DAY").toUpperCase();
+      const dailySessionId = requireMapValue(sessionIds, sessionKey(stationCode, businessDate, shift), "Daily session");
+      const tankId = requireMapValue(tankIds, stationScopedKey(stationCode, text(row, "TankName", true)), "Tank");
+      const productId = requireMapValue(productIds, text(row, "ProductName", true), "Product");
+      const direction = text(row, "Direction", true).toUpperCase();
+      const litres = numberValue(row, "Litres");
+      const approvalStatus = statusValue(row, "ApprovalStatus", "APPROVED").toUpperCase();
+
+      await tx.stockAdjustment.create({
+        data: {
+          tenantId: tenant.id,
+          stationId: requireMapValue(stationIds, stationCode, "Station"),
+          dailySessionId,
+          businessDate,
+          tankId,
+          productId,
+          adjustmentType: text(row, "AdjustmentType", true).toUpperCase(),
+          direction,
+          litres,
+          authorityReason: optionalText(row, "AuthorityReason"),
+          reference: optionalText(row, "Reference"),
+          recordedByName: optionalText(row, "RecordedBy"),
+          approvedByName: optionalText(row, "ApprovedBy"),
+          approvalStatus,
+          remarks: optionalText(row, "Remarks"),
+          createdBy: actorUserId,
+        },
+      });
+
+      if (approvalStatus === "APPROVED") {
+        const key = sessionTankKey(dailySessionId, tankId);
+        const totals = stockAdjustmentTotals.get(key) ?? { inLitres: 0, outLitres: 0 };
+        if (direction === "IN") totals.inLitres += litres;
+        if (direction === "OUT") totals.outLitres += litres;
+        stockAdjustmentTotals.set(key, totals);
+      }
+      counts.stockAdjustments += 1;
+    }
+
     for (const row of sheet(tables, "Tank Dipping")) {
       if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
       const stationCode = text(row, "StationCode", true).toUpperCase();
       const businessDate = dateValue(row, "BusinessDate");
-      const shift = statusValue(row, "Shift", "DAY");
+      const shift = statusValue(row, "Shift", "DAY").toUpperCase();
+      const dailySessionId = requireMapValue(sessionIds, sessionKey(stationCode, businessDate, shift), "Daily session");
+      const tankId = requireMapValue(tankIds, stationScopedKey(stationCode, text(row, "TankName", true)), "Tank");
+      const adjustments = stockAdjustmentTotals.get(sessionTankKey(dailySessionId, tankId)) ?? { inLitres: 0, outLitres: 0 };
       const opening = numberValue(row, "OpeningStockLitres");
       const receipts = numberValue(row, "ReceiptsLitres");
       const meterSold = numberValue(row, "MeterSoldLitres");
@@ -532,15 +594,15 @@ export async function importTenantWorkbook(buffer: Buffer, actorUserId: string):
         data: {
           tenantId: tenant.id,
           stationId: requireMapValue(stationIds, stationCode, "Station"),
-          dailySessionId: requireMapValue(sessionIds, sessionKey(stationCode, businessDate, shift), "Daily session"),
+          dailySessionId,
           businessDate,
-          tankId: requireMapValue(tankIds, stationScopedKey(stationCode, text(row, "TankName", true)), "Tank"),
+          tankId,
           productId: requireMapValue(productIds, text(row, "ProductName", true), "Product"),
           openingStockLitres: opening,
           receiptsLitres: receipts,
           meterSoldLitres: meterSold,
           closingStockLitres: closing,
-          varianceLitres: calcTankVariance(opening, receipts, meterSold, closing),
+          varianceLitres: calcTankVariance(opening, receipts, meterSold, closing, adjustments.inLitres, adjustments.outLitres),
           closingDipCm: numberValue(row, "ClosingDipCm", 0) || null,
           waterTestStatus: statusValue(row, "WaterTestStatus", "CLEAR"),
           remarks: optionalText(row, "Remarks"),
@@ -554,7 +616,7 @@ export async function importTenantWorkbook(buffer: Buffer, actorUserId: string):
       if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
       const stationCode = text(row, "StationCode", true).toUpperCase();
       const businessDate = dateValue(row, "BusinessDate");
-      const shift = statusValue(row, "Shift", "DAY");
+      const shift = statusValue(row, "Shift", "DAY").toUpperCase();
       const before = numberValue(row, "BeforeTankLitres");
       const discharged = numberValue(row, "DischargedLitres");
       const topUp = numberValue(row, "AdjustmentTopUpLitres");
@@ -597,7 +659,7 @@ export async function importTenantWorkbook(buffer: Buffer, actorUserId: string):
       if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
       const stationCode = text(row, "StationCode", true).toUpperCase();
       const businessDate = dateValue(row, "BusinessDate");
-      const shift = statusValue(row, "Shift", "DAY");
+      const shift = statusValue(row, "Shift", "DAY").toUpperCase();
       await tx.expenditure.create({
         data: {
           tenantId: tenant.id,
@@ -622,7 +684,7 @@ export async function importTenantWorkbook(buffer: Buffer, actorUserId: string):
       if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
       const stationCode = text(row, "StationCode", true).toUpperCase();
       const businessDate = dateValue(row, "BusinessDate");
-      const shift = statusValue(row, "Shift", "DAY");
+      const shift = statusValue(row, "Shift", "DAY").toUpperCase();
       const openingCash = numberValue(row, "OpeningCash");
       const cardSales = numberValue(row, "CardSales");
       const cashSales = numberValue(row, "CashSales");
@@ -662,7 +724,7 @@ export async function importTenantWorkbook(buffer: Buffer, actorUserId: string):
       if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
       const stationCode = text(row, "StationCode", true).toUpperCase();
       const businessDate = dateValue(row, "BusinessDate");
-      const shift = statusValue(row, "Shift", "DAY");
+      const shift = statusValue(row, "Shift", "DAY").toUpperCase();
       const saleRef = text(row, "SaleRef", true);
       const serviceName = text(row, "ServiceType", true);
       const vehicleCategory = text(row, "VehicleCategory", true);
@@ -755,7 +817,7 @@ export async function importTenantWorkbook(buffer: Buffer, actorUserId: string):
       if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
       const stationCode = text(row, "StationCode", true).toUpperCase();
       const businessDate = dateValue(row, "BusinessDate");
-      const shift = statusValue(row, "Shift", "DAY");
+      const shift = statusValue(row, "Shift", "DAY").toUpperCase();
       const type = statusValue(row, "Type", "SALE").toUpperCase();
       await tx.creditorLedgerEntry.create({
         data: {
@@ -785,7 +847,7 @@ export async function importTenantWorkbook(buffer: Buffer, actorUserId: string):
       if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
       const stationCode = text(row, "StationCode", true).toUpperCase();
       const businessDate = dateValue(row, "BusinessDate");
-      const shift = statusValue(row, "Shift", "DAY");
+      const shift = statusValue(row, "Shift", "DAY").toUpperCase();
       await tx.paymentDetail.create({
         data: {
           tenantId: tenant.id,
@@ -806,7 +868,7 @@ export async function importTenantWorkbook(buffer: Buffer, actorUserId: string):
       if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
       const stationCode = text(row, "StationCode", true).toUpperCase();
       const businessDate = dateValue(row, "BusinessDate");
-      const shift = statusValue(row, "Shift", "DAY");
+      const shift = statusValue(row, "Shift", "DAY").toUpperCase();
       const expected = numberValue(row, "ExpectedCash");
       const amount = numberValue(row, "AmountToBank");
       await tx.cashCollection.create({

@@ -7,8 +7,8 @@
  *   - Upstash limiter is called with the identifier
  *
  * The in-memory path is tested directly:
- *   - Allows up to MAX_REQUESTS (5) per window
- *   - Blocks on the 6th attempt
+ *   - Allows up to the default max requests (10) per window
+ *   - Blocks after the configured threshold
  *   - Resets after the window expires
  *   - Returns correct `remaining` and `resetAt` values
  */
@@ -35,22 +35,22 @@ describe("in-memory rate limiter (dev/test path)", () => {
     expect(result.allowed).toBe(true);
   });
 
-  it("allows up to 5 requests (MAX_REQUESTS)", async () => {
-    for (let i = 0; i < 5; i++) {
+  it("allows up to 10 requests by default", async () => {
+    for (let i = 0; i < 10; i++) {
       const result = await checkRateLimit("ip-multi");
       expect(result.allowed).toBe(true);
     }
   });
 
-  it("blocks the 6th request in the same window", async () => {
-    for (let i = 0; i < 5; i++) await checkRateLimit("ip-block");
+  it("blocks the 11th request in the same window by default", async () => {
+    for (let i = 0; i < 10; i++) await checkRateLimit("ip-block");
     const result = await checkRateLimit("ip-block");
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
   });
 
   it("tracks different identifiers independently", async () => {
-    for (let i = 0; i < 5; i++) await checkRateLimit("ip-a");
+    for (let i = 0; i < 10; i++) await checkRateLimit("ip-a");
     const blocked = await checkRateLimit("ip-a");
     const fresh = await checkRateLimit("ip-b");
 
@@ -60,10 +60,10 @@ describe("in-memory rate limiter (dev/test path)", () => {
 
   it("returns correct remaining count", async () => {
     const r1 = await checkRateLimit("ip-remaining");
-    expect(r1.remaining).toBe(4); // 5 - 1
+    expect(r1.remaining).toBe(9); // 10 - 1
 
     const r2 = await checkRateLimit("ip-remaining");
-    expect(r2.remaining).toBe(3); // 5 - 2
+    expect(r2.remaining).toBe(8); // 10 - 2
   });
 
   it("returns a future resetAt timestamp", async () => {
@@ -79,7 +79,7 @@ describe("in-memory rate limiter (dev/test path)", () => {
 
   it("resets counter after window expires", async () => {
     // Exhaust the limit
-    for (let i = 0; i < 5; i++) await checkRateLimit("ip-expire");
+    for (let i = 0; i < 10; i++) await checkRateLimit("ip-expire");
     expect((await checkRateLimit("ip-expire")).allowed).toBe(false);
 
     // Simulate window expiry by manipulating Date.now
@@ -88,9 +88,19 @@ describe("in-memory rate limiter (dev/test path)", () => {
 
     const afterExpiry = await checkRateLimit("ip-expire");
     expect(afterExpiry.allowed).toBe(true);
-    expect(afterExpiry.remaining).toBe(4);
+    expect(afterExpiry.remaining).toBe(9);
 
     vi.spyOn(Date, "now").mockRestore();
+  });
+
+  it("honors a configured max request override", async () => {
+    vi.stubEnv("LOGIN_RATE_LIMIT_MAX_REQUESTS", "3");
+
+    for (let i = 0; i < 3; i++) {
+      expect((await checkRateLimit("ip-configured")).allowed).toBe(true);
+    }
+
+    expect((await checkRateLimit("ip-configured")).allowed).toBe(false);
   });
 });
 
@@ -116,7 +126,7 @@ describe("production rate limiter (Upstash path)", () => {
     const result = await checkRateLimit("ip-prod-memory");
 
     expect(result.allowed).toBe(true);
-    expect(result.remaining).toBe(4);
+    expect(result.remaining).toBe(9);
   });
 
   it("RateLimitConfigError is an instance of Error", () => {
@@ -131,7 +141,7 @@ describe("production rate limiter (Upstash path)", () => {
 
 describe("_resetMemoryStoreForTesting", () => {
   it("clears all rate limit state", async () => {
-    for (let i = 0; i < 5; i++) await checkRateLimit("ip-reset-test");
+    for (let i = 0; i < 10; i++) await checkRateLimit("ip-reset-test");
     expect((await checkRateLimit("ip-reset-test")).allowed).toBe(false);
 
     _resetMemoryStoreForTesting();

@@ -49,6 +49,7 @@ export default async function DailyClosePage({
       martSales: true,
       creditorLedger: true,
       lubeBaySales: true,
+      stockAdjustments: true,
     },
   });
 
@@ -79,6 +80,8 @@ export default async function DailyClosePage({
             totalNetExpenditure: 0,
             totalMartNetSales: 0,
             totalMartCashVariance: 0,
+            totalStockAdjustmentIn: 0,
+            totalStockAdjustmentOut: 0,
             expectedCash: 0,
             totalBanked: 0,
             bankingVariance: 0,
@@ -109,6 +112,12 @@ export default async function DailyClosePage({
   // 2. Calculate Tank Totals
   const totalDischargeVariance = dailySession.productDischarges.reduce((sum, r) => sum + Number(r.dischargeVarianceLitres), 0);
   const totalStockVariance = dailySession.tankDippings.reduce((sum, r) => sum + Number(r.varianceLitres), 0);
+  const totalStockAdjustmentIn = dailySession.stockAdjustments
+    .filter((row) => row.approvalStatus === "APPROVED" && row.direction === "IN")
+    .reduce((sum, row) => sum + Number(row.litres), 0);
+  const totalStockAdjustmentOut = dailySession.stockAdjustments
+    .filter((row) => row.approvalStatus === "APPROVED" && row.direction === "OUT")
+    .reduce((sum, row) => sum + Number(row.litres), 0);
 
   // 3. Calculate Cash Totals
   const totalNetExpenditure = dailySession.expenditures.reduce((sum, exp) => sum + Number(exp.amount), 0);
@@ -150,6 +159,8 @@ export default async function DailyClosePage({
           totalNetExpenditure,
           totalMartNetSales,
           totalMartCashVariance,
+          totalStockAdjustmentIn,
+          totalStockAdjustmentOut,
           expectedCash,
           totalBanked,
           bankingVariance,

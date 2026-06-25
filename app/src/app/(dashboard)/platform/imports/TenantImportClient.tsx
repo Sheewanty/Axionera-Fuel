@@ -13,7 +13,16 @@ type ValidationData = {
   requiredSheets: string[];
   missingSheets: string[];
   extraSheets: string[];
+  rowErrors: ImportRowIssue[];
+  rowWarnings: ImportRowIssue[];
   readyForImport: boolean;
+};
+
+type ImportRowIssue = {
+  sheet: string;
+  rowNumber: number;
+  field: string;
+  message: string;
 };
 
 type ValidationResponse = {
@@ -25,6 +34,8 @@ type ValidationResponse = {
 type ImportResponse = {
   success: boolean;
   error?: string;
+  rowErrors?: ImportRowIssue[];
+  rowWarnings?: ImportRowIssue[];
   data?: {
     tenantId: string;
     tenantName: string;
@@ -79,13 +90,52 @@ function ImportResultPanel({ result }: { result: ImportResponse | null }) {
   if (!result) return null;
 
   if (!result.success || !result.data) {
+    const message = result.error ?? "Unable to import workbook.";
+    const missingSessionMatch = /Daily session was not found:\s*([^\s]+)/i.exec(message);
+    const rowErrors = result.rowErrors ?? [];
     return (
       <div className="dash-panel" style={{ borderColor: "color-mix(in srgb, var(--ax-red) 30%, white)" }}>
         <div style={{ display: "flex", gap: 10, alignItems: "center", color: "var(--ax-red)", fontWeight: 800 }}>
           <AlertTriangle size={18} />
           Import failed
         </div>
-        <p style={{ margin: "8px 0 0", color: "var(--ax-muted)" }}>{result.error ?? "Unable to import workbook."}</p>
+        <p style={{ margin: "8px 0 0", color: "var(--ax-muted)" }}>{message}</p>
+        {rowErrors.length > 0 && (
+          <div style={{ marginTop: 16 }} className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Sheet</th>
+                  <th>Row</th>
+                  <th>Field</th>
+                  <th>Offending Data / Error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rowErrors.slice(0, 12).map((error, index) => (
+                  <tr key={`${error.sheet}-${error.rowNumber}-${error.field}-${index}`}>
+                    <td>{error.sheet}</td>
+                    <td>{error.rowNumber}</td>
+                    <td>{error.field}</td>
+                    <td style={{ color: "var(--ax-red)", fontWeight: 700 }}>{error.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {rowErrors.length > 12 && (
+              <p style={{ margin: "10px 12px", color: "var(--ax-muted)" }}>
+                Showing first 12 of {rowErrors.length} import validation errors.
+              </p>
+            )}
+          </div>
+        )}
+        {missingSessionMatch && (
+          <div className="alert-box danger" style={{ marginTop: 12 }}>
+            Validate Workbook should now catch this before import. Offending session key:{" "}
+            <strong>{missingSessionMatch[1]}</strong>. Check the transaction row&apos;s StationCode, BusinessDate, and
+            Shift against the Daily Sessions sheet.
+          </div>
+        )}
       </div>
     );
   }
@@ -216,7 +266,7 @@ function StatusPanel({ result }: { result: ValidationResponse | null }) {
     >
       <div style={{ display: "flex", gap: 10, alignItems: "center", color: data.readyForImport ? "var(--ax-green)" : "var(--ax-amber)", fontWeight: 900 }}>
         {data.readyForImport ? <CheckCircle2 size={18} /> : <AlertTriangle size={18} />}
-        {data.readyForImport ? "Workbook structure is valid" : "Workbook needs correction before import"}
+        {data.readyForImport ? "Workbook validation passed" : "Workbook needs correction before import"}
       </div>
       <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "minmax(260px, 2fr) repeat(3, minmax(130px, 1fr))", gap: 18, alignItems: "start" }}>
         <div style={{ minWidth: 0 }}>
@@ -232,13 +282,48 @@ function StatusPanel({ result }: { result: ValidationResponse | null }) {
           <div style={{ fontWeight: 800 }}>{data.sheetNames.length}</div>
         </div>
         <div>
-          <div className="metric-label">Missing Sheets</div>
-          <div style={{ fontWeight: 800 }}>{data.missingSheets.length}</div>
+          <div className="metric-label">Row Issues</div>
+          <div style={{ fontWeight: 800 }}>{data.rowErrors.length} errors</div>
         </div>
       </div>
       {data.missingSheets.length > 0 && (
         <div style={{ marginTop: 14, color: "var(--ax-red)" }}>
           <strong>Missing:</strong> {data.missingSheets.join(", ")}
+        </div>
+      )}
+      {data.rowErrors.length > 0 && (
+        <div style={{ marginTop: 16 }} className="table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Sheet</th>
+                <th>Row</th>
+                <th>Field</th>
+                <th>Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.rowErrors.slice(0, 12).map((error, index) => (
+                <tr key={`${error.sheet}-${error.rowNumber}-${error.field}-${index}`}>
+                  <td>{error.sheet}</td>
+                  <td>{error.rowNumber}</td>
+                  <td>{error.field}</td>
+                  <td style={{ color: "var(--ax-red)", fontWeight: 700 }}>{error.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {data.rowErrors.length > 12 && (
+            <p style={{ margin: "10px 12px", color: "var(--ax-muted)" }}>
+              Showing first 12 of {data.rowErrors.length} validation errors.
+            </p>
+          )}
+        </div>
+      )}
+      {data.rowWarnings.length > 0 && (
+        <div style={{ marginTop: 14, color: "var(--ax-amber)" }}>
+          <strong>Warnings:</strong> {data.rowWarnings.length} non-blocking row note(s). First:{" "}
+          {data.rowWarnings[0].sheet} row {data.rowWarnings[0].rowNumber}, {data.rowWarnings[0].field} - {data.rowWarnings[0].message}
         </div>
       )}
       {data.readyForImport && <p style={{ margin: "14px 0 0", color: "var(--ax-muted)" }}>Validation is complete. You may now import this workbook.</p>}

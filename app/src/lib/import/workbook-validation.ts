@@ -17,6 +17,7 @@ export const NORTHBRIDGE_IMPORT_REQUIRED_SHEETS = [
   "Pump Readings",
   "Tank Dipping",
   "Product Discharge",
+  "Stock Adjustments",
   "Expenditure",
   "Mart Sales",
   "Lube Sale Lines",
@@ -31,7 +32,16 @@ export type ImportWorkbookValidation = {
   requiredSheets: string[];
   missingSheets: string[];
   extraSheets: string[];
+  rowErrors: ImportRowIssue[];
+  rowWarnings: ImportRowIssue[];
   readyForImport: boolean;
+};
+
+export type ImportRowIssue = {
+  sheet: string;
+  rowNumber: number;
+  field: string;
+  message: string;
 };
 
 export type WorkbookCellValue = string | number | boolean | null;
@@ -163,7 +173,416 @@ export function validateImportWorkbookSheets(sheetNames: string[]): ImportWorkbo
     requiredSheets,
     missingSheets,
     extraSheets,
+    rowErrors: [],
+    rowWarnings: [],
     readyForImport: missingSheets.length === 0,
+  };
+}
+
+const STOCK_ADJUSTMENT_TYPES = new Set(["REGULATORY_INSPECTION", "STOCK_CORRECTION", "EVAPORATION", "OTHER"]);
+const STOCK_ADJUSTMENT_DIRECTIONS = new Set(["IN", "OUT"]);
+const STOCK_ADJUSTMENT_APPROVAL_STATUSES = new Set(["PENDING", "APPROVED", "REJECTED"]);
+const SESSION_REFERENCING_SHEETS = [
+  "Pump Readings",
+  "Tank Dipping",
+  "Product Discharge",
+  "Stock Adjustments",
+  "Expenditure",
+  "Mart Sales",
+  "Lube Sales",
+  "Debtor Ledger",
+  "Payment Details",
+  "Cash Collections",
+] as const;
+
+const STATION_SCOPED_TRANSACTION_SHEETS = [
+  "Expenditure",
+  "Mart Sales",
+  "Lube Sales",
+  "Debtor Ledger",
+  "Payment Details",
+  "Cash Collections",
+] as const;
+
+function issue(sheet: string, rowNumber: number, field: string, message: string): ImportRowIssue {
+  return { sheet, rowNumber, field, message };
+}
+
+function rowText(row: WorkbookRow, key: string): string {
+  const value = row[key];
+  return value === null || value === undefined ? "" : String(value).trim();
+}
+
+function rowNumberValue(row: WorkbookRow, key: string): number | null {
+  const value = row[key];
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function excelSerialDate(serial: number): Date {
+  const utc = Date.UTC(1899, 11, 30) + Math.round(serial) * 86400000;
+  return new Date(utc);
+}
+
+function rowDateKey(row: WorkbookRow, key: string): string | null {
+  const value = row[key];
+  if (typeof value === "number") return excelSerialDate(value).toISOString().slice(0, 10);
+
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate())).toISOString().slice(0, 10);
+}
+
+function rowSessionKey(row: WorkbookRow): string | null {
+  const stationCode = rowText(row, "StationCode").toUpperCase();
+  const businessDate = rowDateKey(row, "BusinessDate");
+  const shift = (rowText(row, "Shift") || "DAY").toUpperCase();
+  if (!stationCode || !businessDate || !shift) return null;
+  return `${stationCode}|${businessDate}|${shift}`;
+}
+
+function stationScopedKey(stationCode: string, name: string): string {
+  return `${stationCode}|${name}`;
+}
+
+function nozzleKey(stationCode: string, pumpName: string, nozzleName: string): string {
+  return `${stationCode}|${pumpName}|${nozzleName}`;
+}
+
+function addMissingReferenceIssue(
+  errors: ImportRowIssue[],
+  sheet: string,
+  rowNumber: number,
+  field: string,
+  key: string,
+  label: string,
+  sourceSheet: string
+) {
+  errors.push(
+    issue(
+      sheet,
+      rowNumber,
+      field,
+      `${label} was not found for '${key}'. Offending data: ${field}='${key}'. Add or correct the matching row in ${sourceSheet}.`
+    )
+  );
+}
+
+function validateEntityReferences(tables: WorkbookTables): ImportRowIssue[] {
+  const errors: ImportRowIssue[] = [];
+  const stations = new Set<string>();
+  const products = new Set<string>();
+  const tanks = new Set<string>();
+  const pumps = new Set<string>();
+  const nozzles = new Set<string>();
+  const debtors = new Set<string>();
+  const serviceTypes = new Set<string>();
+
+  (tables["Stations"] ?? []).forEach((row) => {
+    const stationCode = rowText(row, "StationCode").toUpperCase();
+    if (stationCode) stations.add(stationCode);
+  });
+
+  (tables["Products"] ?? []).forEach((row) => {
+    const productName = rowText(row, "ProductName");
+    if (productName) products.add(productName);
+  });
+
+  function validateStation(sheetName: string, row: WorkbookRow, rowNumber: number): string {
+    const stationCode = rowText(row, "StationCode").toUpperCase();
+    if (!stationCode) {
+      errors.push(issue(sheetName, rowNumber, "StationCode", "StationCode is required"));
+      return "";
+    }
+    if (!stations.has(stationCode)) {
+      addMissingReferenceIssue(errors, sheetName, rowNumber, "StationCode", stationCode, "Station", "Stations");
+    }
+    return stationCode;
+  }
+
+  function validateProduct(sheetName: string, row: WorkbookRow, rowNumber: number): string {
+    const productName = rowText(row, "ProductName");
+    if (!productName) {
+      errors.push(issue(sheetName, rowNumber, "ProductName", "ProductName is required"));
+      return "";
+    }
+    if (!products.has(productName)) {
+      addMissingReferenceIssue(errors, sheetName, rowNumber, "ProductName", productName, "Product", "Products");
+    }
+    return productName;
+  }
+
+  (tables["Product Prices"] ?? []).forEach((row, index) => {
+    const rowNumber = index + 2;
+    validateStation("Product Prices", row, rowNumber);
+    validateProduct("Product Prices", row, rowNumber);
+  });
+
+  (tables["Tanks"] ?? []).forEach((row, index) => {
+    const rowNumber = index + 2;
+    const stationCode = validateStation("Tanks", row, rowNumber);
+    validateProduct("Tanks", row, rowNumber);
+    const tankName = rowText(row, "TankName");
+    if (!tankName) {
+      errors.push(issue("Tanks", rowNumber, "TankName", "TankName is required"));
+      return;
+    }
+    if (stationCode) tanks.add(stationScopedKey(stationCode, tankName));
+  });
+
+  (tables["Pumps"] ?? []).forEach((row, index) => {
+    const rowNumber = index + 2;
+    const stationCode = validateStation("Pumps", row, rowNumber);
+    const pumpName = rowText(row, "PumpName");
+    if (!pumpName) {
+      errors.push(issue("Pumps", rowNumber, "PumpName", "PumpName is required"));
+      return;
+    }
+    if (stationCode) pumps.add(stationScopedKey(stationCode, pumpName));
+  });
+
+  (tables["Nozzles"] ?? []).forEach((row, index) => {
+    const rowNumber = index + 2;
+    const stationCode = validateStation("Nozzles", row, rowNumber);
+    validateProduct("Nozzles", row, rowNumber);
+    const pumpName = rowText(row, "PumpName");
+    const nozzleName = rowText(row, "NozzleName");
+    if (!pumpName) {
+      errors.push(issue("Nozzles", rowNumber, "PumpName", "PumpName is required"));
+    } else if (stationCode && !pumps.has(stationScopedKey(stationCode, pumpName))) {
+      addMissingReferenceIssue(errors, "Nozzles", rowNumber, "StationCode + PumpName", stationScopedKey(stationCode, pumpName), "Pump", "Pumps");
+    }
+    if (!nozzleName) {
+      errors.push(issue("Nozzles", rowNumber, "NozzleName", "NozzleName is required"));
+      return;
+    }
+    if (stationCode && pumpName) nozzles.add(nozzleKey(stationCode, pumpName, nozzleName));
+  });
+
+  (tables["Debtors"] ?? []).forEach((row, index) => {
+    const rowNumber = index + 2;
+    const stationCode = validateStation("Debtors", row, rowNumber);
+    const debtorName = rowText(row, "DebtorName");
+    if (!debtorName) {
+      errors.push(issue("Debtors", rowNumber, "DebtorName", "DebtorName is required"));
+      return;
+    }
+    if (stationCode) debtors.add(stationScopedKey(stationCode, debtorName));
+  });
+
+  (tables["Lube Service Types"] ?? []).forEach((row, index) => {
+    const rowNumber = index + 2;
+    const stationCode = rowText(row, "StationCode").toUpperCase();
+    if (stationCode && !stations.has(stationCode)) {
+      addMissingReferenceIssue(errors, "Lube Service Types", rowNumber, "StationCode", stationCode, "Station", "Stations");
+    }
+    const serviceName = rowText(row, "ServiceName") || rowText(row, "StationCode");
+    const vehicleCategory = rowText(row, "VehicleCategory");
+    if (!serviceName) errors.push(issue("Lube Service Types", rowNumber, "ServiceName", "ServiceName is required"));
+    if (!vehicleCategory) errors.push(issue("Lube Service Types", rowNumber, "VehicleCategory", "VehicleCategory is required"));
+    if (serviceName && vehicleCategory) serviceTypes.add(`${serviceName}|${vehicleCategory}`);
+  });
+
+  (tables["MoMo Operators"] ?? []).forEach((row, index) => {
+    const rowNumber = index + 2;
+    const stationCode = rowText(row, "StationCode").toUpperCase();
+    if (stationCode && !stations.has(stationCode)) {
+      addMissingReferenceIssue(errors, "MoMo Operators", rowNumber, "StationCode", stationCode, "Station", "Stations");
+    }
+  });
+
+  (tables["Pump Readings"] ?? []).forEach((row, index) => {
+    const rowNumber = index + 2;
+    const stationCode = validateStation("Pump Readings", row, rowNumber);
+    validateProduct("Pump Readings", row, rowNumber);
+    const pumpName = rowText(row, "PumpName");
+    const nozzleName = rowText(row, "NozzleName");
+    if (stationCode && pumpName && !pumps.has(stationScopedKey(stationCode, pumpName))) {
+      addMissingReferenceIssue(errors, "Pump Readings", rowNumber, "StationCode + PumpName", stationScopedKey(stationCode, pumpName), "Pump", "Pumps");
+    }
+    if (stationCode && pumpName && nozzleName && !nozzles.has(nozzleKey(stationCode, pumpName, nozzleName))) {
+      addMissingReferenceIssue(
+        errors,
+        "Pump Readings",
+        rowNumber,
+        "StationCode + PumpName + NozzleName",
+        nozzleKey(stationCode, pumpName, nozzleName),
+        "Nozzle",
+        "Nozzles"
+      );
+    }
+  });
+
+  ["Tank Dipping", "Product Discharge", "Stock Adjustments"].forEach((sheetName) => {
+    (tables[sheetName] ?? []).forEach((row, index) => {
+      const rowNumber = index + 2;
+      const stationCode = validateStation(sheetName, row, rowNumber);
+      validateProduct(sheetName, row, rowNumber);
+      const tankName = rowText(row, "TankName");
+      if (!tankName) {
+        errors.push(issue(sheetName, rowNumber, "TankName", "TankName is required"));
+      } else if (stationCode && !tanks.has(stationScopedKey(stationCode, tankName))) {
+        addMissingReferenceIssue(errors, sheetName, rowNumber, "StationCode + TankName", stationScopedKey(stationCode, tankName), "Tank", "Tanks");
+      }
+    });
+  });
+
+  STATION_SCOPED_TRANSACTION_SHEETS.forEach((sheetName) => {
+    (tables[sheetName] ?? []).forEach((row, index) => {
+      validateStation(sheetName, row, index + 2);
+    });
+  });
+
+  (tables["Debtor Ledger"] ?? []).forEach((row, index) => {
+    const rowNumber = index + 2;
+    const stationCode = rowText(row, "StationCode").toUpperCase();
+    const debtorName = rowText(row, "DebtorName");
+    if (stationCode && debtorName && !debtors.has(stationScopedKey(stationCode, debtorName))) {
+      addMissingReferenceIssue(errors, "Debtor Ledger", rowNumber, "StationCode + DebtorName", stationScopedKey(stationCode, debtorName), "Debtor", "Debtors");
+    }
+  });
+
+  (tables["Payment Details"] ?? []).forEach((row, index) => {
+    const rowNumber = index + 2;
+    const stationCode = rowText(row, "StationCode").toUpperCase();
+    const debtorName = rowText(row, "DebtorName");
+    if (stationCode && debtorName && !debtors.has(stationScopedKey(stationCode, debtorName))) {
+      addMissingReferenceIssue(errors, "Payment Details", rowNumber, "StationCode + DebtorName", stationScopedKey(stationCode, debtorName), "Debtor", "Debtors");
+    }
+  });
+
+  (tables["Lube Sales"] ?? []).forEach((row, index) => {
+    const rowNumber = index + 2;
+    const serviceName = rowText(row, "ServiceType");
+    const vehicleCategory = rowText(row, "VehicleCategory");
+    if (serviceName && vehicleCategory && !serviceTypes.has(`${serviceName}|${vehicleCategory}`)) {
+      addMissingReferenceIssue(errors, "Lube Sales", rowNumber, "ServiceType + VehicleCategory", `${serviceName}|${vehicleCategory}`, "Service type", "Lube Service Types");
+    }
+  });
+
+  return errors;
+}
+
+function validateDailySessionReferences(tables: WorkbookTables): ImportRowIssue[] {
+  const errors: ImportRowIssue[] = [];
+  const sessionKeys = new Set<string>();
+
+  (tables["Daily Sessions"] ?? []).forEach((row) => {
+    const key = rowSessionKey(row);
+    if (key) sessionKeys.add(key);
+  });
+
+  SESSION_REFERENCING_SHEETS.forEach((sheetName) => {
+    (tables[sheetName] ?? []).forEach((row, index) => {
+      const rowNumber = index + 2;
+      const stationCode = rowText(row, "StationCode").toUpperCase();
+      const businessDate = rowDateKey(row, "BusinessDate");
+      const rawBusinessDate = rowText(row, "BusinessDate");
+      const shift = (rowText(row, "Shift") || "DAY").toUpperCase();
+
+      if (!stationCode) {
+        errors.push(issue(sheetName, rowNumber, "StationCode", "StationCode is required to match a Daily Sessions row"));
+        return;
+      }
+      if (!businessDate) {
+        errors.push(issue(sheetName, rowNumber, "BusinessDate", `BusinessDate is invalid or missing: '${rawBusinessDate}'`));
+        return;
+      }
+
+      const key = `${stationCode}|${businessDate}|${shift}`;
+      if (!sessionKeys.has(key)) {
+        errors.push(
+          issue(
+            sheetName,
+            rowNumber,
+            "StationCode + BusinessDate + Shift",
+            `Daily session was not found for '${key}'. Offending values: StationCode='${stationCode}', BusinessDate='${businessDate}', Shift='${shift}'. Add a matching row in Daily Sessions.`
+          )
+        );
+      }
+    });
+  });
+
+  return errors;
+}
+
+function validateStockAdjustmentRows(rows: WorkbookRow[]): { errors: ImportRowIssue[]; warnings: ImportRowIssue[] } {
+  const errors: ImportRowIssue[] = [];
+  const warnings: ImportRowIssue[] = [];
+
+  rows.forEach((row, index) => {
+    const rowNumber = index + 2;
+    const requiredFields = [
+      "CompanyCode",
+      "StationCode",
+      "BusinessDate",
+      "TankName",
+      "ProductName",
+      "AdjustmentType",
+      "Direction",
+      "Litres",
+    ];
+
+    requiredFields.forEach((field) => {
+      if (!rowText(row, field)) {
+        errors.push(issue("Stock Adjustments", rowNumber, field, `${field} is required`));
+      }
+    });
+
+    const adjustmentType = rowText(row, "AdjustmentType").toUpperCase();
+    const direction = rowText(row, "Direction").toUpperCase();
+    const approvalStatus = rowText(row, "ApprovalStatus").toUpperCase();
+    const litres = rowNumberValue(row, "Litres");
+
+    if (adjustmentType && !STOCK_ADJUSTMENT_TYPES.has(adjustmentType)) {
+      errors.push(
+        issue(
+          "Stock Adjustments",
+          rowNumber,
+          "AdjustmentType",
+          "AdjustmentType must be REGULATORY_INSPECTION, STOCK_CORRECTION, EVAPORATION, or OTHER"
+        )
+      );
+    }
+
+    if (direction && !STOCK_ADJUSTMENT_DIRECTIONS.has(direction)) {
+      errors.push(issue("Stock Adjustments", rowNumber, "Direction", "Direction must be IN or OUT"));
+    }
+
+    if (litres === null || litres <= 0) {
+      errors.push(issue("Stock Adjustments", rowNumber, "Litres", "Litres must be greater than 0"));
+    }
+
+    if (approvalStatus && !STOCK_ADJUSTMENT_APPROVAL_STATUSES.has(approvalStatus)) {
+      errors.push(issue("Stock Adjustments", rowNumber, "ApprovalStatus", "ApprovalStatus must be PENDING, APPROVED, or REJECTED"));
+    }
+
+    if (adjustmentType === "REGULATORY_INSPECTION" && direction && direction !== "OUT") {
+      errors.push(issue("Stock Adjustments", rowNumber, "Direction", "Regulatory inspection draw-offs must use Direction OUT"));
+    }
+
+    if (adjustmentType === "REGULATORY_INSPECTION" && !rowText(row, "Reference")) {
+      warnings.push(issue("Stock Adjustments", rowNumber, "Reference", "Add the NPA inspection reference where available"));
+    }
+
+    if (!rowText(row, "ApprovedBy")) {
+      warnings.push(issue("Stock Adjustments", rowNumber, "ApprovedBy", "ApprovedBy is recommended for audit control"));
+    }
+  });
+
+  return { errors, warnings };
+}
+
+export function validateImportWorkbookRows(tables: WorkbookTables): Pick<ImportWorkbookValidation, "rowErrors" | "rowWarnings"> {
+  const stockAdjustments = tables["Stock Adjustments"] ?? [];
+  const stockAdjustmentIssues = validateStockAdjustmentRows(stockAdjustments);
+  return {
+    rowErrors: [...validateDailySessionReferences(tables), ...validateEntityReferences(tables), ...stockAdjustmentIssues.errors],
+    rowWarnings: stockAdjustmentIssues.warnings,
   };
 }
 

@@ -32,6 +32,7 @@ model Tenant {
   memberships Membership[]
   products    Product[]
   creditors   Creditor[]
+  stockAdjustments StockAdjustment[]
 }
 
 model Station {
@@ -54,6 +55,7 @@ model Station {
   pumpReadings        PumpReading[]
   tankDippings        TankDipping[]
   discharges          ProductDischarge[]
+  stockAdjustments    StockAdjustment[]
   cashCollections     CashCollection[]
   paymentDetails      PaymentDetail[]
   creditors           Creditor[]
@@ -169,6 +171,7 @@ model Product {
   pumpReadings     PumpReading[]
   tankDippings     TankDipping[]
   discharges       ProductDischarge[]
+  stockAdjustments StockAdjustment[]
   paymentDetails   PaymentDetail[]
   creditorLedger   CreditorLedgerEntry[]
   lubeBaySales     LubeBaySale[]
@@ -237,6 +240,7 @@ model Tank {
   product           Product            @relation(fields: [productId], references: [id])
   tankDippings      TankDipping[]
   productDischarges ProductDischarge[]
+  stockAdjustments  StockAdjustment[]
 }
 
 // ─── Daily Operations ─────────────────────────────────────────────────────────
@@ -262,6 +266,7 @@ model DailySession {
   expenditures        Expenditure[]
   martSales           MartSale[]
   productDischarges   ProductDischarge[]
+  stockAdjustments    StockAdjustment[]
   creditorLedger      CreditorLedgerEntry[]
   lubeBaySales        LubeBaySale[]
 
@@ -379,6 +384,39 @@ model ProductDischarge {
 
   @@index([tenantId, dailySessionId])
   @@index([tenantId, dailySessionId, tankId])
+}
+
+model StockAdjustment {
+  id              String   @id @default(cuid())
+  tenantId        String
+  stationId       String
+  dailySessionId  String
+  businessDate    DateTime @db.Date
+  tankId          String
+  productId       String
+  adjustmentType  String   // REGULATORY_INSPECTION | STOCK_CORRECTION | EVAPORATION | OTHER
+  direction       String   // IN | OUT
+  litres          Decimal  @db.Decimal(12, 2)
+  authorityReason String?
+  reference       String?
+  recordedByName  String?
+  approvedByName  String?
+  approvalStatus  String   @default("APPROVED") // PENDING | APPROVED | REJECTED
+  remarks         String?
+  createdBy       String
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  station      Station      @relation(fields: [stationId], references: [id])
+  dailySession DailySession @relation(fields: [dailySessionId], references: [id])
+  tank         Tank         @relation(fields: [tankId], references: [id])
+  product      Product      @relation(fields: [productId], references: [id])
+
+  @@index([tenantId, dailySessionId])
+  @@index([tenantId, dailySessionId, tankId])
+  @@index([tenantId, stationId, businessDate])
 }
 
 model PaymentDetail {
@@ -678,4 +716,64 @@ model AuditLog {
   @@index([tenantId, createdAt])
   @@index([tenantId, entityType, entityId])
   @@index([actorUserId])
+}
+
+model ReportRun {
+  id             String   @id @default(cuid())
+  tenantId       String
+  stationId      String?
+  templateKey    String
+  title          String
+  audience       String
+  periodFrom     DateTime @db.Date
+  periodTo       DateTime @db.Date
+  status         String   @default("GENERATING") // GENERATING | COMPLETED | FAILED
+  formats        Json
+  factsJson      Json
+  narrativeJson  Json?
+  model          String?
+  usedOpenAi     Boolean  @default(false)
+  error          String?
+  generatedBy    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  artifacts ReportArtifact[]
+  sources   ReportSource[]
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, templateKey])
+  @@index([tenantId, stationId, periodFrom, periodTo])
+}
+
+model ReportArtifact {
+  id          String   @id @default(cuid())
+  tenantId    String
+  reportRunId String
+  format      String // PDF | PPTX
+  filePath    String
+  fileSize    Int
+  checksum    String
+  createdAt   DateTime @default(now())
+
+  reportRun ReportRun @relation(fields: [reportRunId], references: [id], onDelete: Cascade)
+
+  @@unique([reportRunId, format])
+  @@index([tenantId, createdAt])
+}
+
+model ReportSource {
+  id             String   @id @default(cuid())
+  tenantId       String
+  reportRunId    String
+  sourceType     String
+  sourceId       String?
+  sourceLabel    String?
+  sourceSnapshot Json?
+  createdAt      DateTime @default(now())
+
+  reportRun ReportRun @relation(fields: [reportRunId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, reportRunId])
+  @@index([tenantId, sourceType])
 }

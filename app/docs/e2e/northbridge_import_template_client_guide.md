@@ -186,7 +186,7 @@ Required fields:
 - `OpenedByEmail`
 - `Status`: Usually `OPEN` for imported working data, or the correct historical status.
 
-Every pump reading, tank dipping, product discharge, expenditure, mart sale, lube sale, debtor payment, payment detail, and cash collection must point to an existing daily session.
+Every pump reading, tank dipping, product discharge, stock adjustment, expenditure, mart sale, lube sale, debtor payment, payment detail, and cash collection must point to an existing daily session.
 
 ## 13. Pump Readings
 
@@ -275,12 +275,54 @@ Required fields:
 Calculated fields:
 
 - `MeterSoldLitres`: Sum of pump litres sold for that product/session.
-- `ExpectedClosingFormula`: Opening stock + receipts - meter sold.
+- `ExpectedClosingFormula`: Opening stock + receipts + approved adjustment in - meter sold - approved adjustment out.
 - `VarianceLitresFormula`: Actual closing stock minus expected closing stock.
+
+## 16. Stock Adjustments
+
+Use this sheet for approved non-sales stock movements that affect tank stock but must not create revenue, cash, HQ settlement, debtor sales, or banking expectation.
+
+Examples:
+
+- NPA inspection draw-off of a few litres during a regulatory inspection.
+- Approved stock correction that is not a product discharge and not a pump sale.
+
+Required fields:
+
+- `CompanyCode`
+- `StationCode`
+- `BusinessDate`
+- `Shift`: Usually `DAY`.
+- `TankName`
+- `ProductName`
+- `AdjustmentType`: Use `REGULATORY_INSPECTION`, `STOCK_CORRECTION`, `EVAPORATION`, or `OTHER`.
+- `Direction`: Use `OUT` for NPA draw-offs; use `IN` only for approved stock added back.
+- `Litres`: Must be greater than zero.
+
+Recommended control fields:
+
+- `AuthorityReason`: For example `NPA inspection draw-off`.
+- `Reference`: Inspection/reference number where available.
+- `RecordedBy`
+- `ApprovedBy`
+- `ApprovalStatus`: Use `APPROVED`, `PENDING`, or `REJECTED`. Only `APPROVED` rows affect tank variance.
+- `Remarks`
+
+Effect on calculations:
+
+- `OUT` reduces expected closing stock.
+- `IN` increases expected closing stock.
+- Stock adjustments do not affect pump expected revenue, cash collection, payment details, debtor ledger, or bankable cash.
+
+Example:
+
+| CompanyCode | StationCode | BusinessDate | Shift | TankName | ProductName | AdjustmentType | Direction | Litres | AuthorityReason | Reference | RecordedBy | ApprovedBy | ApprovalStatus | Remarks |
+| --- | --- | --- | --- | --- | --- | --- | --- | ---: | --- | --- | --- | --- | --- | --- |
+| NBF | ACC | 21-Jun-2026 | DAY | Diesel Tank | Diesel | REGULATORY_INSPECTION | OUT | 5.00 | NPA inspection draw-off | NPA/ACC/2026/014 | Kofi Mensah | Ama Boateng | APPROVED | Routine inspection sample |
 
 Opening stock for a tank should normally be the previous day closing stock. For the first imported day, enter the actual opening stock from the station records.
 
-## 16. Expenditure
+## 17. Expenditure
 
 Enter actual expenditure only.
 
@@ -300,7 +342,7 @@ Required fields:
 
 Do not record cash advances as expenditure. If GHS100 was given and only GHS70 was spent, record GHS70 as expenditure. The remaining GHS30 is accountable imprest or returned cash, not expenditure.
 
-## 17. Mart Sales
+## 18. Mart Sales
 
 Enter one daily mart sales summary per station/session.
 
@@ -324,7 +366,7 @@ Calculated fields:
 
 Card sales are electronic card/POS settlements. Cash sales are physical cash kept in the till.
 
-## 18. Lube Sale Lines
+## 19. Lube Sale Lines
 
 Enter product line items for lube bay sales.
 
@@ -338,7 +380,7 @@ Required fields:
 
 For service-only work such as wheel rotation, do not enter a product line.
 
-## 19. Lube Sales
+## 20. Lube Sales
 
 Enter one row per lube bay job.
 
@@ -371,7 +413,7 @@ Calculated field:
 
 - `TotalExpected`: Product line total + labour charge - discount.
 
-## 20. Debtor Ledger
+## 21. Debtor Ledger
 
 Enter credit sales and debtor payments.
 
@@ -393,7 +435,7 @@ Conditional fields:
 - For cash payments, the cash amount is bankable and should be included in cash collection.
 - For MoMo payments, record the payment for debtor balance control, but do not include it in bankable physical cash.
 
-## 21. Payment Details
+## 22. Payment Details
 
 Enter non-cash payment details for audit and reconciliation.
 
@@ -426,7 +468,7 @@ Optional fields:
 - `PhoneNumber`
 - `Remarks`
 
-## 22. Cash Collections
+## 23. Cash Collections
 
 Enter bank deposits or cash collection records.
 
@@ -464,4 +506,3 @@ Bank collection date is the date the bank physically collected or received the c
 - Tank variance, product discharge variance, pump variance, lube variance, and cash collection variance should be zero unless there is a real exception to investigate.
 - Validate the workbook in FuelStation OS before importing.
 - Import only after validation passes.
-

@@ -1,4 +1,4 @@
-import { Droplets, Fuel, Gauge, Truck } from "lucide-react";
+import { ArrowDownUp, Droplets, Fuel, Gauge, Truck } from "lucide-react";
 import KpiCard from "@/components/ui/KpiCard";
 import PageTitle from "@/components/ui/PageTitle";
 import VarianceBadge from "@/components/ui/VarianceBadge";
@@ -29,7 +29,7 @@ export default async function TankLossReportPage({ searchParams }: { searchParam
     );
   }
 
-  const [dippings, discharges] = await Promise.all([
+  const [dippings, discharges, stockAdjustments] = await Promise.all([
     prisma.tankDipping.findMany({
       where: { tenantId: session.user.tenantId, stationId: station.id },
       include: {
@@ -41,6 +41,16 @@ export default async function TankLossReportPage({ searchParams }: { searchParam
       take: 250,
     }),
     prisma.productDischarge.findMany({
+      where: { tenantId: session.user.tenantId, stationId: station.id },
+      include: {
+        tank: { select: { name: true } },
+        product: { select: { name: true } },
+        dailySession: { select: { businessDate: true, shift: true } },
+      },
+      orderBy: [{ businessDate: "desc" }, { createdAt: "desc" }],
+      take: 100,
+    }),
+    prisma.stockAdjustment.findMany({
       where: { tenantId: session.user.tenantId, stationId: station.id },
       include: {
         tank: { select: { name: true } },
@@ -67,6 +77,9 @@ export default async function TankLossReportPage({ searchParams }: { searchParam
     (sum, row) => sum + Number(row.dischargeVarianceLitres),
     0
   );
+  const approvedAdjustmentOut = stockAdjustments
+    .filter((row) => row.approvalStatus === "APPROVED" && row.direction === "OUT")
+    .reduce((sum, row) => sum + Number(row.litres), 0);
 
   return (
     <>
@@ -91,6 +104,7 @@ export default async function TankLossReportPage({ searchParams }: { searchParam
         />
         <KpiCard label="Meter Sold" value={formatLitres(totals.meterSold)} icon={<Gauge size={16} />} />
         <KpiCard label="Receipts" value={formatLitres(totals.receipts)} icon={<Truck size={16} />} />
+        <KpiCard label="Adjustment Out" value={formatLitres(approvedAdjustmentOut)} icon={<ArrowDownUp size={16} />} />
         <KpiCard
           label="Discharge Variance"
           value={formatLitres(dischargeVariance)}
@@ -104,7 +118,7 @@ export default async function TankLossReportPage({ searchParams }: { searchParam
         <div className="dash-panel-head">
           <div>
             <div className="dash-panel-title">Tank Dipping Variance</div>
-            <div className="dash-panel-sub">Opening stock + receipts - meter sold - closing stock</div>
+            <div className="dash-panel-sub">Opening stock + receipts + adjustment in - meter sold - adjustment out - closing stock</div>
           </div>
         </div>
         <div className="table-wrapper">
@@ -141,6 +155,48 @@ export default async function TankLossReportPage({ searchParams }: { searchParam
                     <td style={{ textAlign: "right" }}>
                       <VarianceBadge value={Number(row.varianceLitres)} format={(value) => formatLitres(value)} />
                     </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="dash-panel">
+        <div className="dash-panel-title">Stock Adjustments</div>
+        <div className="table-wrapper">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Tank</th>
+                <th>Product</th>
+                <th>Type</th>
+                <th>Direction</th>
+                <th style={{ textAlign: "right" }}>Litres</th>
+                <th>Reference</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stockAdjustments.length === 0 ? (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: "center", color: "var(--ax-muted)", padding: 24 }}>
+                    No stock adjustments have been recorded for this station.
+                  </td>
+                </tr>
+              ) : (
+                stockAdjustments.slice(0, 20).map((row) => (
+                  <tr key={row.id}>
+                    <td>{formatReportDate(row.dailySession.businessDate)}</td>
+                    <td style={{ fontWeight: 700 }}>{row.tank.name}</td>
+                    <td>{row.product.name}</td>
+                    <td>{row.adjustmentType.replace(/_/g, " ")}</td>
+                    <td>{row.direction}</td>
+                    <td style={{ textAlign: "right" }}>{formatLitres(Number(row.litres))}</td>
+                    <td>{row.reference ?? "-"}</td>
+                    <td>{row.approvalStatus}</td>
                   </tr>
                 ))
               )}

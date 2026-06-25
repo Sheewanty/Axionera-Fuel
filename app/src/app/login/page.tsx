@@ -3,7 +3,7 @@
  *
  * Security design:
  *  - Generic error message: never reveals which field (email vs password) is wrong
- *  - Redis-backed rate limiter (Upstash): max 5 attempts per IP per 15-min sliding window
+ *  - Redis-backed rate limiter (Upstash): default 10 attempts per IP/email per 15-min sliding window
  *    dev/test: in-memory fallback | production: Upstash (fail closed if not configured)
  *  - bcrypt.compare in auth.ts already runs in constant time
  *  - CSRF protection handled by Auth.js v5 automatically
@@ -13,6 +13,7 @@ import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { signIn } from "@/lib/auth";
+import { getLoginRateLimitIdentifier } from "@/lib/login-rate-limit";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { Fuel } from "lucide-react";
 
@@ -26,6 +27,9 @@ function isNextRedirectError(error: unknown): boolean {
 async function handleLogin(formData: FormData) {
   "use server";
 
+  const email = formData.get("email");
+  const password = formData.get("password");
+
   // Rate limit check — uses Upstash Redis in production, in-memory fallback in dev
   const headersList = await headers();
   const ip =
@@ -33,14 +37,11 @@ async function handleLogin(formData: FormData) {
     headersList.get("x-real-ip") ??
     "unknown";
 
-  const { allowed } = await checkRateLimit(ip);
+  const { allowed } = await checkRateLimit(getLoginRateLimitIdentifier(ip, email));
   if (!allowed) {
     redirect("/login?error=TooManyRequests");
     return;
   }
-
-  const email = formData.get("email");
-  const password = formData.get("password");
 
   try {
     await signIn("credentials", {
@@ -73,7 +74,7 @@ async function handleLogin(formData: FormData) {
 const ERROR_MESSAGES: Record<string, string> = {
   InvalidCredentials: "Invalid email or password. Please try again.",
   TooManyRequests:
-    "Too many login attempts. Please wait 15 minutes before trying again.",
+    "Too many sign-in attempts for this email. Please wait 15 minutes before trying again.",
   ServerError: "A server error occurred. Please try again later.",
 };
 

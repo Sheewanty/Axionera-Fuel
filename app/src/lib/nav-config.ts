@@ -81,6 +81,13 @@ export const NAV_CONFIG: NavGroup[] = [
         stationScoped: false,
         access: { SUPER_ADMIN: "full" },
       },
+      {
+        label: "Roadmap",
+        href: "/platform/roadmap",
+        icon: "road",
+        stationScoped: false,
+        access: { SUPER_ADMIN: "full" },
+      },
     ],
   },
   {
@@ -141,6 +148,13 @@ export const NAV_CONFIG: NavGroup[] = [
         label: "Product Discharge",
         href: "/forecourt/product-discharge",
         icon: "truck-ramp-box",
+        stationScoped: true,
+        access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "full", SUPERVISOR: "full", ACCOUNTANT: "view", AUDITOR: "view" },
+      },
+      {
+        label: "Stock Adjustments",
+        href: "/forecourt/stock-adjustments",
+        icon: "arrow-right-arrow-left",
         stationScoped: true,
         access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "full", SUPERVISOR: "full", ACCOUNTANT: "view", AUDITOR: "view" },
       },
@@ -320,6 +334,20 @@ export const NAV_CONFIG: NavGroup[] = [
     icon: "chart-line",
     items: [
       {
+        label: "Reports Hub",
+        href: "/reports",
+        icon: "chart-pie",
+        stationScoped: false,
+        access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "full", SUPERVISOR: "view", ACCOUNTANT: "full", AUDITOR: "view" },
+      },
+      {
+        label: "Report Library",
+        href: "/reports/library",
+        icon: "folder-open",
+        stationScoped: false,
+        access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "full", SUPERVISOR: "view", ACCOUNTANT: "full", AUDITOR: "view" },
+      },
+      {
         label: "Daily Reports",
         href: "/reports/daily",
         icon: "calendar-day",
@@ -353,6 +381,13 @@ export const NAV_CONFIG: NavGroup[] = [
         icon: "file-export",
         stationScoped: true,
         access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "full", SUPERVISOR: "full", ACCOUNTANT: "full", AUDITOR: "view" },
+      },
+      {
+        label: "AI Insights",
+        href: "/reports/insights",
+        icon: "brain",
+        stationScoped: false,
+        access: { OWNER: "full", ADMIN: "full", STATION_MANAGER: "view", AUDITOR: "view" },
       },
     ],
   },

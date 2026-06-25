@@ -6,14 +6,19 @@ import { z } from "zod";
 import { prisma } from "@/lib/db/prisma";
 import { getRequiredSession, requireSuperAdmin } from "@/lib/session";
 import { writeAuditLog } from "@/lib/db/audit.service";
-import { extractXlsxSheetNames, validateImportWorkbookSheets } from "@/lib/import/workbook-validation";
+import {
+  extractXlsxSheetNames,
+  readXlsxTables,
+  validateImportWorkbookRows,
+  validateImportWorkbookSheets,
+} from "@/lib/import/workbook-validation";
 import { importTenantWorkbook, type TenantImportResult } from "@/lib/import/tenant-import";
 
 type ActionResponse = {
   success: boolean;
   error?: string;
   fieldErrors?: Record<string, string[]>;
-  data?: { id: string };
+  data?: { id: string; deletedCounts?: Record<string, number> };
 };
 
 type WorkbookValidationResponse = {
@@ -26,6 +31,8 @@ type WorkbookValidationResponse = {
     requiredSheets: string[];
     missingSheets: string[];
     extraSheets: string[];
+    rowErrors: { sheet: string; rowNumber: number; field: string; message: string }[];
+    rowWarnings: { sheet: string; rowNumber: number; field: string; message: string }[];
     readyForImport: boolean;
   };
 };
@@ -33,6 +40,8 @@ type WorkbookValidationResponse = {
 type WorkbookImportResponse = {
   success: boolean;
   error?: string;
+  rowErrors?: { sheet: string; rowNumber: number; field: string; message: string }[];
+  rowWarnings?: { sheet: string; rowNumber: number; field: string; message: string }[];
   data?: TenantImportResult;
 };
 
@@ -76,6 +85,11 @@ const platformTenantUpdateSchema = z.object({
   maxStations: z.coerce.number().int().min(1).max(999),
   maxTanks: z.coerce.number().int().min(1).max(999),
   maxPumps: z.coerce.number().int().min(1).max(999),
+});
+
+const platformTenantResetSchema = z.object({
+  tenantId: z.string().min(1, "Tenant is required"),
+  confirmation: z.string().trim().min(1, "Confirmation is required"),
 });
 
 function validationError(error: z.ZodError): ActionResponse {
@@ -288,6 +302,118 @@ export async function updatePlatformTenantAction(formData: FormData): Promise<Ac
   }
 }
 
+export async function resetPlatformTenantForFreshImportAction(formData: FormData): Promise<ActionResponse> {
+  const parsed = platformTenantResetSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) return validationError(parsed.error);
+
+  try {
+    const session = await getRequiredSession();
+    requireSuperAdmin(session);
+    const { tenantId, confirmation } = parsed.data;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true, name: true, slug: true, subscriptionStatus: true, subscriptionPackage: true },
+      });
+      if (!tenant) throw new Error("Company was not found");
+      if (confirmation !== `RESET ${tenant.slug}`) {
+        throw new Error(`Confirmation must exactly match: RESET ${tenant.slug}`);
+      }
+
+      const memberships = await tx.membership.findMany({
+        where: { tenantId },
+        select: { userId: true },
+      });
+      const tenantUserIds = [...new Set(memberships.map((membership) => membership.userId))];
+      const sharedMemberships = tenantUserIds.length
+        ? await tx.membership.findMany({
+            where: { userId: { in: tenantUserIds }, tenantId: { not: tenantId } },
+            select: { userId: true },
+          })
+        : [];
+      const sharedUserIds = new Set(sharedMemberships.map((membership) => membership.userId));
+      const removableUserIds = tenantUserIds.filter((userId) => userId !== session.user.id && !sharedUserIds.has(userId));
+
+      const deletedCounts: Record<string, number> = {};
+      const del = async (label: string, action: Promise<{ count: number }>) => {
+        const deleted = await action;
+        deletedCounts[label] = deleted.count;
+      };
+
+      await del("reportArtifacts", tx.reportArtifact.deleteMany({ where: { tenantId } }));
+      await del("reportSources", tx.reportSource.deleteMany({ where: { tenantId } }));
+      await del("reportRuns", tx.reportRun.deleteMany({ where: { tenantId } }));
+      await del("lubeBaySaleLines", tx.lubeBaySaleLine.deleteMany({ where: { tenantId } }));
+      await del("creditorLedgerEntries", tx.creditorLedgerEntry.deleteMany({ where: { tenantId } }));
+      await del("paymentDetails", tx.paymentDetail.deleteMany({ where: { tenantId } }));
+      await del("cashCollections", tx.cashCollection.deleteMany({ where: { tenantId } }));
+      await del("expenditures", tx.expenditure.deleteMany({ where: { tenantId } }));
+      await del("martSales", tx.martSale.deleteMany({ where: { tenantId } }));
+      await del("stockAdjustments", tx.stockAdjustment.deleteMany({ where: { tenantId } }));
+      await del("productDischarges", tx.productDischarge.deleteMany({ where: { tenantId } }));
+      await del("tankDippings", tx.tankDipping.deleteMany({ where: { tenantId } }));
+      await del("pumpReadings", tx.pumpReading.deleteMany({ where: { tenantId } }));
+      await del("lubeBaySales", tx.lubeBaySale.deleteMany({ where: { tenantId } }));
+      await del("dailySessions", tx.dailySession.deleteMany({ where: { tenantId } }));
+      await del("lubeBayServiceTypes", tx.lubeBayServiceType.deleteMany({ where: { tenantId } }));
+      await del("momoOperators", tx.lubeBayMomoOperator.deleteMany({ where: { tenantId } }));
+      await del("creditors", tx.creditor.deleteMany({ where: { tenantId } }));
+      await del("nozzles", tx.nozzle.deleteMany({ where: { tenantId } }));
+      await del("pumps", tx.pump.deleteMany({ where: { tenantId } }));
+      await del("tanks", tx.tank.deleteMany({ where: { tenantId } }));
+      await del("priceHistory", tx.priceHistory.deleteMany({ where: { tenantId } }));
+      await del("products", tx.product.deleteMany({ where: { tenantId } }));
+      await del("auditLogs", tx.auditLog.deleteMany({ where: { tenantId } }));
+      await del("stations", tx.station.deleteMany({ where: { tenantId } }));
+      await del("memberships", tx.membership.deleteMany({ where: { tenantId } }));
+
+      if (removableUserIds.length > 0) {
+        await del("userSessions", tx.session.deleteMany({ where: { userId: { in: removableUserIds } } }));
+        await del("userAccounts", tx.account.deleteMany({ where: { userId: { in: removableUserIds } } }));
+        await del("users", tx.user.deleteMany({ where: { id: { in: removableUserIds }, isSuperAdmin: false } }));
+      } else {
+        deletedCounts.userSessions = 0;
+        deletedCounts.userAccounts = 0;
+        deletedCounts.users = 0;
+      }
+
+      await del("tenants", tx.tenant.deleteMany({ where: { id: tenantId } }));
+
+      await writeAuditLog(
+        {
+          tenantId: "__platform__",
+          stationId: null,
+          actorUserId: session.user.id,
+          entityType: "Tenant",
+          entityId: tenant.id,
+          action: "DELETE",
+          before: {
+            name: tenant.name,
+            slug: tenant.slug,
+            subscriptionStatus: tenant.subscriptionStatus,
+            subscriptionPackage: tenant.subscriptionPackage,
+          },
+          after: {
+            deleted: true,
+            deletedCounts,
+          },
+        },
+        tx
+      );
+
+      return { id: tenant.id, deletedCounts };
+    });
+
+    revalidatePath("/platform");
+    revalidatePath("/platform/subscriptions");
+    revalidatePath("/platform/imports");
+    return { success: true, data: result };
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
 export async function validateTenantImportWorkbookAction(formData: FormData): Promise<WorkbookValidationResponse> {
   try {
     const session = await getRequiredSession();
@@ -318,7 +444,13 @@ export async function validateTenantImportWorkbookAction(formData: FormData): Pr
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const sheetNames = extractXlsxSheetNames(buffer);
-    const validation = validateImportWorkbookSheets(sheetNames);
+    const sheetValidation = validateImportWorkbookSheets(sheetNames);
+    const rowValidation = validateImportWorkbookRows(readXlsxTables(buffer));
+    const validation = {
+      ...sheetValidation,
+      ...rowValidation,
+      readyForImport: sheetValidation.missingSheets.length === 0 && rowValidation.rowErrors.length === 0,
+    };
 
     return {
       success: true,
@@ -363,7 +495,26 @@ export async function importTenantWorkbookAction(formData: FormData): Promise<Wo
       return { success: false, error: "Workbook is too large. Keep import files under 10MB." };
     }
 
-    const result = await importTenantWorkbook(Buffer.from(await file.arrayBuffer()), session.user.id);
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const sheetValidation = validateImportWorkbookSheets(extractXlsxSheetNames(buffer));
+    const rowValidation = validateImportWorkbookRows(readXlsxTables(buffer));
+    if (sheetValidation.missingSheets.length > 0 || rowValidation.rowErrors.length > 0) {
+      return {
+        success: false,
+        error: [
+          sheetValidation.missingSheets.length > 0
+            ? `Workbook is missing required sheets: ${sheetValidation.missingSheets.join(", ")}`
+            : "",
+          rowValidation.rowErrors.length > 0
+            ? `Workbook has ${rowValidation.rowErrors.length} row validation error(s). Validate the workbook and fix the listed rows before import.`
+            : "",
+        ].filter(Boolean).join(" "),
+        rowErrors: rowValidation.rowErrors,
+        rowWarnings: rowValidation.rowWarnings,
+      };
+    }
+
+    const result = await importTenantWorkbook(buffer, session.user.id);
 
     revalidatePath("/platform");
     revalidatePath("/platform/subscriptions");

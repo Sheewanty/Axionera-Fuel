@@ -33,6 +33,8 @@ type SummaryProps = {
   totalNetExpenditure: number;
   totalMartNetSales: number;
   totalMartCashVariance: number;
+  totalStockAdjustmentIn: number;
+  totalStockAdjustmentOut: number;
   expectedCash: number;
   totalBanked: number;
   bankingVariance: number;
@@ -254,6 +256,14 @@ export default function DailyCloseClient({
             <li className="flex justify-between items-center border-b pb-2">
               <span className="text-gray-600">Tank Stock Variance</span>
               <VarianceBadge value={summary.totalStockVariance} format={formatLitres} />
+            </li>
+            <li className="flex justify-between items-center border-b pb-2">
+              <span className="text-gray-600">Approved Stock Adjustments In</span>
+              <span className="font-medium">{formatLitres(summary.totalStockAdjustmentIn)}</span>
+            </li>
+            <li className="flex justify-between items-center border-b pb-2">
+              <span className="text-gray-600">Approved Stock Adjustments Out</span>
+              <span className="font-medium">{formatLitres(summary.totalStockAdjustmentOut)}</span>
             </li>
             <li className="flex justify-between items-center border-b pb-2">
               <span className="text-gray-600">Pump Sales Variance</span>

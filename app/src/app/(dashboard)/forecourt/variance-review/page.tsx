@@ -40,6 +40,7 @@ export default async function VarianceReviewPage({
       pumpReadings: { include: { nozzle: true, product: true }, orderBy: { createdAt: "asc" } },
       tankDippings: { include: { tank: true, product: true }, orderBy: { createdAt: "asc" } },
       productDischarges: { include: { tank: true, product: true }, orderBy: { createdAt: "asc" } },
+      stockAdjustments: { include: { tank: true, product: true }, orderBy: { createdAt: "asc" } },
       cashCollections: { orderBy: { createdAt: "asc" } },
       martSales: true,
     },
@@ -57,6 +58,9 @@ export default async function VarianceReviewPage({
   const pumpVariance = dailySession.pumpReadings.reduce((sum, r) => sum + Number(r.variance), 0);
   const tankVariance = dailySession.tankDippings.reduce((sum, r) => sum + Number(r.varianceLitres), 0);
   const dischargeVariance = dailySession.productDischarges.reduce((sum, r) => sum + Number(r.dischargeVarianceLitres), 0);
+  const stockAdjustmentOut = dailySession.stockAdjustments
+    .filter((row) => row.approvalStatus === "APPROVED" && row.direction === "OUT")
+    .reduce((sum, row) => sum + Number(row.litres), 0);
   const bankVariance = dailySession.cashCollections.reduce((sum, r) => sum + Number(r.variance), 0);
   const martVariance = dailySession.martSales.reduce((sum, r) => sum + Number(r.variance), 0);
 
@@ -68,7 +72,7 @@ export default async function VarianceReviewPage({
         subtitle={`${station.name} - ${formatDisplayDate(dailySession.businessDate)} - ${dailySession.status.replace(/_/g, " ")}`}
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
         <div className="bg-white p-4 rounded shadow">
           <div className="text-sm text-slate-500">Pump Sales</div>
           <VarianceBadge value={pumpVariance} format={formatCurrency} />
@@ -80,6 +84,10 @@ export default async function VarianceReviewPage({
         <div className="bg-white p-4 rounded shadow">
           <div className="text-sm text-slate-500">Discharge</div>
           <VarianceBadge value={dischargeVariance} format={formatLitres} />
+        </div>
+        <div className="bg-white p-4 rounded shadow">
+          <div className="text-sm text-slate-500">Stock Adjustment Out</div>
+          <span className="font-semibold">{formatLitres(stockAdjustmentOut)}</span>
         </div>
         <div className="bg-white p-4 rounded shadow">
           <div className="text-sm text-slate-500">Banking</div>
@@ -144,6 +152,44 @@ export default async function VarianceReviewPage({
                 <td><VarianceBadge value={Number(r.varianceLitres)} format={formatLitres} /></td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="bg-white rounded shadow overflow-hidden">
+        <div className="p-4 border-b font-semibold">Stock Adjustments</div>
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Tank</th>
+              <th>Product</th>
+              <th>Type</th>
+              <th>Direction</th>
+              <th>Litres</th>
+              <th>Reference</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dailySession.stockAdjustments.length === 0 ? (
+              <tr>
+                <td colSpan={7} style={{ textAlign: "center", color: "var(--ax-muted)", padding: 20 }}>
+                  No approved or pending stock adjustments for this session.
+                </td>
+              </tr>
+            ) : (
+              dailySession.stockAdjustments.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.tank.name}</td>
+                  <td>{row.product.name}</td>
+                  <td>{row.adjustmentType.replace(/_/g, " ")}</td>
+                  <td>{row.direction}</td>
+                  <td>{formatLitres(Number(row.litres))}</td>
+                  <td>{row.reference ?? "-"}</td>
+                  <td>{row.approvalStatus}</td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

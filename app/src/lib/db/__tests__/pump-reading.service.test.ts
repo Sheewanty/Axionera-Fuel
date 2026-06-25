@@ -18,6 +18,9 @@ describe("PumpReading Service", () => {
         findMany: vi.fn().mockResolvedValue([]),
         update: vi.fn(),
       },
+      stockAdjustment: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       ...overrides,
     };
   }
@@ -110,7 +113,7 @@ describe("PumpReading Service", () => {
       },
       tankDipping: {
         findMany: vi.fn().mockResolvedValue([
-          { id: "dip_1", openingStockLitres: 10000, receiptsLitres: 1000, closingStockLitres: 10500 },
+          { id: "dip_1", tankId: "tank_1", openingStockLitres: 10000, receiptsLitres: 1000, closingStockLitres: 10500 },
         ]),
         update: vi.fn().mockResolvedValue({ id: "dip_1" }),
       },

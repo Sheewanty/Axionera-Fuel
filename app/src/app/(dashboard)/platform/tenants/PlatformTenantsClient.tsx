@@ -2,9 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { AlertTriangle, Plus, Trash2 } from "lucide-react";
 import Modal from "@/components/ui/Modal";
-import { createPlatformTenantAction, updatePlatformTenantAction } from "@/lib/actions/platform.actions";
+import {
+  createPlatformTenantAction,
+  resetPlatformTenantForFreshImportAction,
+  updatePlatformTenantAction,
+} from "@/lib/actions/platform.actions";
 
 type TenantRow = {
   id: string;
@@ -27,6 +31,7 @@ type ActionResponse = {
   success: boolean;
   error?: string;
   fieldErrors?: Record<string, string[]>;
+  data?: { deletedCounts?: Record<string, number> };
 };
 
 const packageDefaults: Record<string, { maxStations: number; maxTanks: number; maxPumps: number }> = {
@@ -80,6 +85,7 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
   const [editTenant, setEditTenant] = useState<TenantRow | null>(null);
+  const [resetTenant, setResetTenant] = useState<TenantRow | null>(null);
   const [result, setResult] = useState<ActionResponse | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -106,6 +112,22 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
       const response = await updatePlatformTenantAction(formData);
       setResult(response);
       if (response.success) {
+        setEditTenant(null);
+        router.refresh();
+      }
+    });
+  };
+
+  const submitReset = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    startTransition(async () => {
+      const response = await resetPlatformTenantForFreshImportAction(formData);
+      setResult(response);
+      if (response.success) {
+        form.reset();
+        setResetTenant(null);
         setEditTenant(null);
         router.refresh();
       }
@@ -299,6 +321,19 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
         size="lg"
         footer={
           <>
+            <button
+              className="btn btn-outline"
+              type="button"
+              onClick={() => {
+                setResult(null);
+                setResetTenant(editTenant);
+              }}
+              disabled={pending || !editTenant}
+              style={{ borderColor: "color-mix(in srgb, var(--ax-red) 35%, var(--ax-border))", color: "var(--ax-red)", marginRight: "auto" }}
+            >
+              <Trash2 size={14} />
+              Delete for Re-import
+            </button>
             <button className="btn btn-outline" onClick={() => setEditTenant(null)} disabled={pending}>Cancel</button>
             <button className="btn btn-primary" type="submit" form="platform-update-tenant-form" disabled={pending}>
               {pending ? "Saving..." : "Save Changes"}
@@ -359,6 +394,58 @@ export default function PlatformTenantsClient({ tenants }: { tenants: TenantRow[
                 <input className="form-input" name="maxPumps" type="number" min="1" defaultValue={editTenant.maxPumps} required />
               </label>
             </div>
+          </form>
+        )}
+      </Modal>
+
+      <Modal
+        open={Boolean(resetTenant)}
+        title="Delete Tenant for Fresh Import"
+        onClose={() => {
+          if (!pending) setResetTenant(null);
+        }}
+        size="md"
+        footer={
+          <>
+            <button className="btn btn-outline" onClick={() => setResetTenant(null)} disabled={pending}>Cancel</button>
+            <button
+              className="btn btn-primary"
+              type="submit"
+              form="platform-reset-tenant-form"
+              disabled={pending}
+              style={{ background: "var(--ax-red)", borderColor: "var(--ax-red)" }}
+            >
+              {pending ? "Deleting..." : "Delete Tenant"}
+            </button>
+          </>
+        }
+      >
+        <FieldErrors result={result} />
+        {resetTenant && (
+          <form id="platform-reset-tenant-form" onSubmit={submitReset} style={{ display: "grid", gap: 14 }}>
+            <input type="hidden" name="tenantId" value={resetTenant.id} />
+            <div
+              className="alert-box danger"
+              style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 0 }}
+            >
+              <AlertTriangle size={18} />
+              <div>
+                <strong>This permanently deletes this tenant shell and its data.</strong>
+                <div style={{ marginTop: 6 }}>
+                  It deletes stations, products, tanks, pumps, nozzles, users, daily sessions, sales, banking,
+                  reports, tenant audit history, and related operational records for <strong>{resetTenant.name}</strong>.
+                  The subscription row will disappear from this register. A later Excel import can recreate the tenant
+                  from the workbook using the same slug.
+                </div>
+              </div>
+            </div>
+            <div>
+              Type <strong>RESET {resetTenant.slug}</strong> to confirm.
+            </div>
+            <label className="form-group">
+              <span className="form-label">Confirmation</span>
+              <input className="form-input" name="confirmation" autoComplete="off" required />
+            </label>
           </form>
         )}
       </Modal>

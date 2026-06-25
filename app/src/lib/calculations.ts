@@ -58,9 +58,11 @@ export function calcTankVariance(
   openingStock: number,
   receipts: number,
   meterSold: number,
-  closingStock: number
+  closingStock: number,
+  adjustmentIn = 0,
+  adjustmentOut = 0
 ): number {
-  return openingStock + receipts - meterSold - closingStock;
+  return openingStock + receipts + adjustmentIn - meterSold - adjustmentOut - closingStock;
 }
 
 /** Product discharge: expected tank level after delivery */

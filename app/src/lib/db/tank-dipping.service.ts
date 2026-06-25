@@ -2,6 +2,7 @@ import { Db } from "./types";
 import { CorrectTankDippingInput, CreateTankDippingInput } from "../schemas/tank-dipping.schema";
 import { calcTankVariance } from "../calculations";
 import { appendCorrectionNote } from "../corrections";
+import { getApprovedStockAdjustmentTotals } from "./stock-adjustment.service";
 
 const LOCKED_SESSION_STATUSES = new Set(["READY_FOR_REVIEW", "APPROVED"]);
 
@@ -29,6 +30,7 @@ export async function recalculateTankDippingsForSessionProduct(
     where: { tenantId, dailySessionId, productId },
     select: {
       id: true,
+      tankId: true,
       openingStockLitres: true,
       receiptsLitres: true,
       closingStockLitres: true,
@@ -36,8 +38,9 @@ export async function recalculateTankDippingsForSessionProduct(
   });
 
   await Promise.all(
-    dippings.map((dipping) =>
-      db.tankDipping.update({
+    dippings.map(async (dipping) => {
+      const adjustments = await getApprovedStockAdjustmentTotals(db, tenantId, dailySessionId, dipping.tankId);
+      return db.tankDipping.update({
         where: { id: dipping.id },
         data: {
           meterSoldLitres,
@@ -45,11 +48,13 @@ export async function recalculateTankDippingsForSessionProduct(
             Number(dipping.openingStockLitres),
             Number(dipping.receiptsLitres),
             meterSoldLitres,
-            Number(dipping.closingStockLitres)
+            Number(dipping.closingStockLitres),
+            adjustments.adjustmentInLitres,
+            adjustments.adjustmentOutLitres
           ),
         },
-      })
-    )
+      });
+    })
   );
 }
 
@@ -96,12 +101,15 @@ export async function createTankDipping(
 
   // Server-derived meter sold
   const meterSoldLitres = await getSessionProductMeterSold(tenantId, input.dailySessionId, input.productId, db);
+  const adjustments = await getApprovedStockAdjustmentTotals(db, tenantId, input.dailySessionId, input.tankId);
 
   const varianceLitres = calcTankVariance(
     openingStockLitres,
     input.receiptsLitres,
     meterSoldLitres,
-    input.closingStockLitres
+    input.closingStockLitres,
+    adjustments.adjustmentInLitres,
+    adjustments.adjustmentOutLitres
   );
 
   const dipping = await db.tankDipping.create({
@@ -168,12 +176,15 @@ export async function correctTankDipping(
   const openingStockLitres = Number(existing.openingStockLitres);
 
   const meterSoldLitres = await getSessionProductMeterSold(tenantId, input.dailySessionId, input.productId, db);
+  const adjustments = await getApprovedStockAdjustmentTotals(db, tenantId, input.dailySessionId, input.tankId);
 
   const varianceLitres = calcTankVariance(
     openingStockLitres,
     input.receiptsLitres,
     meterSoldLitres,
-    input.closingStockLitres
+    input.closingStockLitres,
+    adjustments.adjustmentInLitres,
+    adjustments.adjustmentOutLitres
   );
 
   return db.tankDipping.update({

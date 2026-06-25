@@ -24,7 +24,7 @@ const DUMMY_HASH =
 
 
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update: updateSession } = NextAuth({
   ...authConfig,
 
   adapter: PrismaAdapter(prisma),
@@ -118,7 +118,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // Merge the authorized callback from authConfig (runs in middleware)
     ...authConfig.callbacks,
 
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       // `user` is only defined on the initial sign-in
       if (user) {
         token.userId = user.id!;
@@ -127,6 +127,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.membershipStationId = user.membershipStationId;
         token.activeStationId = user.activeStationId;
         token.forcePasswordChange = user.forcePasswordChange;
+      }
+      if (trigger === "update") {
+        const update = session as { user?: { forcePasswordChange?: unknown }; forcePasswordChange?: unknown } | undefined;
+        const forcePasswordChange = update?.user?.forcePasswordChange ?? update?.forcePasswordChange;
+        if (typeof forcePasswordChange === "boolean") {
+          token.forcePasswordChange = forcePasswordChange;
+        }
       }
       return token;
     },
