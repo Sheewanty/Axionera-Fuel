@@ -23,6 +23,7 @@ type ImportRowIssue = {
   rowNumber: number;
   field: string;
   message: string;
+  cells?: string[];
 };
 
 type ValidationResponse = {
@@ -86,6 +87,10 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatIssueCells(error: ImportRowIssue): string {
+  return error.cells && error.cells.length > 0 ? error.cells.join(", ") : "-";
+}
+
 function ImportResultPanel({ result }: { result: ImportResponse | null }) {
   if (!result) return null;
 
@@ -107,6 +112,7 @@ function ImportResultPanel({ result }: { result: ImportResponse | null }) {
                 <tr>
                   <th>Sheet</th>
                   <th>Row</th>
+                  <th>Cell(s)</th>
                   <th>Field</th>
                   <th>Offending Data / Error</th>
                 </tr>
@@ -116,6 +122,7 @@ function ImportResultPanel({ result }: { result: ImportResponse | null }) {
                   <tr key={`${error.sheet}-${error.rowNumber}-${error.field}-${index}`}>
                     <td>{error.sheet}</td>
                     <td>{error.rowNumber}</td>
+                    <td>{formatIssueCells(error)}</td>
                     <td>{error.field}</td>
                     <td style={{ color: "var(--ax-red)", fontWeight: 700 }}>{error.message}</td>
                   </tr>
@@ -298,6 +305,7 @@ function StatusPanel({ result }: { result: ValidationResponse | null }) {
               <tr>
                 <th>Sheet</th>
                 <th>Row</th>
+                <th>Cell(s)</th>
                 <th>Field</th>
                 <th>Error</th>
               </tr>
@@ -307,6 +315,7 @@ function StatusPanel({ result }: { result: ValidationResponse | null }) {
                 <tr key={`${error.sheet}-${error.rowNumber}-${error.field}-${index}`}>
                   <td>{error.sheet}</td>
                   <td>{error.rowNumber}</td>
+                  <td>{formatIssueCells(error)}</td>
                   <td>{error.field}</td>
                   <td style={{ color: "var(--ax-red)", fontWeight: 700 }}>{error.message}</td>
                 </tr>
@@ -323,7 +332,8 @@ function StatusPanel({ result }: { result: ValidationResponse | null }) {
       {data.rowWarnings.length > 0 && (
         <div style={{ marginTop: 14, color: "var(--ax-amber)" }}>
           <strong>Warnings:</strong> {data.rowWarnings.length} non-blocking row note(s). First:{" "}
-          {data.rowWarnings[0].sheet} row {data.rowWarnings[0].rowNumber}, {data.rowWarnings[0].field} - {data.rowWarnings[0].message}
+          {data.rowWarnings[0].sheet} row {data.rowWarnings[0].rowNumber}
+          {data.rowWarnings[0].cells?.length ? ` (${data.rowWarnings[0].cells.join(", ")})` : ""}, {data.rowWarnings[0].field} - {data.rowWarnings[0].message}
         </div>
       )}
       {data.readyForImport && <p style={{ margin: "14px 0 0", color: "var(--ax-muted)" }}>Validation is complete. You may now import this workbook.</p>}

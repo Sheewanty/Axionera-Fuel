@@ -48,6 +48,223 @@ describe("workbook import validation", () => {
     expect(result.extraSheets).toEqual([]);
   });
 
+  it("reports missing user email with sheet, row, field, and offending values", () => {
+    const result = validateImportWorkbookRows({
+      Users: [
+        {
+          CompanyCode: "NBF",
+          StationCode: "ACC",
+          Name: "Northbridge Supervisor",
+          Role: "STATION_MANAGER",
+        },
+      ],
+    });
+
+    expect(result.rowErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sheet: "Users",
+          rowNumber: 2,
+          field: "Email",
+          message: expect.stringContaining("StationCode='ACC'"),
+        }),
+      ])
+    );
+  });
+
+  it("accepts common imported user role labels and rejects unknown roles", () => {
+    const result = validateImportWorkbookRows({
+      Users: [
+        {
+          CompanyCode: "NBF",
+          StationCode: "ACC",
+          Email: "manager@example.com",
+          Name: "Station Manager",
+          Role: "Manager",
+        },
+        {
+          CompanyCode: "NBF",
+          StationCode: "ACC",
+          Email: "bad-role@example.com",
+          Name: "Bad Role",
+          Role: "Cashier",
+        },
+      ],
+    });
+
+    expect(result.rowErrors).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          rowNumber: 2,
+          field: "Role",
+        }),
+      ])
+    );
+    expect(result.rowErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sheet: "Users",
+          rowNumber: 3,
+          field: "Role",
+          message: expect.stringContaining("Role must be one of"),
+        }),
+      ])
+    );
+  });
+
+  it("reports invalid UnitPrice cells with sheet, row, and field", () => {
+    const result = validateImportWorkbookRows({
+      "Product Prices": [
+        {
+          __rowNumber: 7,
+          "__cell:UnitPrice": "D7",
+          CompanyCode: "NBF",
+          StationCode: "ACC",
+          ProductName: "Ron 95",
+          UnitPrice: "16 .87",
+          EffectiveFrom: "2026-06-08",
+        },
+      ],
+    });
+
+    expect(result.rowErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sheet: "Product Prices",
+          rowNumber: 7,
+          field: "UnitPrice",
+          cells: ["D7"],
+          message: expect.stringContaining("16 .87"),
+        }),
+      ])
+    );
+  });
+
+  it("reports duplicate pump reading keys with both offending rows and cells", () => {
+    const result = validateImportWorkbookRows({
+      "Pump Readings": [
+        {
+          __rowNumber: 14,
+          "__cell:StationCode": "B14",
+          "__cell:BusinessDate": "C14",
+          "__cell:Shift": "D14",
+          "__cell:PumpName": "E14",
+          "__cell:NozzleName": "F14",
+          StationCode: "ACC",
+          BusinessDate: "2026-06-21",
+          Shift: "DAY",
+          PumpName: "PUMP3",
+          NozzleName: "Dxp 3",
+        },
+        {
+          __rowNumber: 19,
+          "__cell:StationCode": "B19",
+          "__cell:BusinessDate": "C19",
+          "__cell:Shift": "D19",
+          "__cell:PumpName": "E19",
+          "__cell:NozzleName": "F19",
+          StationCode: "ACC",
+          BusinessDate: "2026-06-21",
+          Shift: "DAY",
+          PumpName: "PUMP3",
+          NozzleName: "Dxp 3",
+        },
+      ],
+    });
+
+    expect(result.rowErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sheet: "Pump Readings",
+          rowNumber: 14,
+          field: "StationCode + BusinessDate + Shift + PumpName + NozzleName",
+          cells: expect.arrayContaining(["B14", "F14", "B19", "F19"]),
+          message: expect.stringContaining("Rows: 14, 19"),
+        }),
+      ])
+    );
+  });
+
+  it("reports invalid debtor OpeningBalance cells before import execution", () => {
+    const result = validateImportWorkbookRows({
+      Debtors: [
+        {
+          CompanyCode: "NBF",
+          StationCode: "ACC",
+          DebtorName: "St. Marys International School",
+          CreditLimit: 10000,
+          OpeningBalance: "not-a-number",
+        },
+      ],
+    });
+
+    expect(result.rowErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sheet: "Debtors",
+          rowNumber: 2,
+          field: "OpeningBalance",
+          message: expect.stringContaining("not-a-number"),
+        }),
+      ])
+    );
+  });
+
+  it("reports lube sales rows missing SaleRef before import execution", () => {
+    const result = validateImportWorkbookRows({
+      "Lube Sales": [
+        {
+          CompanyCode: "NBF",
+          StationCode: "ACC",
+          BusinessDate: "2026-06-08",
+          Shift: "DAY",
+          VehicleReg: "GR-100-26",
+          ServiceType: "Oil Change",
+          VehicleCategory: "SUV and Crossovers",
+        },
+      ],
+    });
+
+    expect(result.rowErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sheet: "Lube Sales",
+          rowNumber: 2,
+          field: "SaleRef",
+        }),
+      ])
+    );
+  });
+
+  it("reports debtor ledger sale rows with unknown products before import execution", () => {
+    const result = validateImportWorkbookRows({
+      Products: [{ CompanyCode: "NBF", ProductName: "Ron 95" }],
+      "Debtor Ledger": [
+        {
+          CompanyCode: "NBF",
+          StationCode: "ACC",
+          BusinessDate: "2026-06-08",
+          Shift: "DAY",
+          DebtorName: "NHIA",
+          Type: "SALE",
+          Amount: 400,
+          ProductName: "Sxp 95",
+        },
+      ],
+    });
+
+    expect(result.rowErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          sheet: "Debtor Ledger",
+          rowNumber: 2,
+          field: "ProductName",
+          message: expect.stringContaining("Sxp 95"),
+        }),
+      ])
+    );
+  });
+
   it("validates stock adjustment rows with field-level errors", () => {
     const result = validateImportWorkbookRows({
       "Stock Adjustments": [

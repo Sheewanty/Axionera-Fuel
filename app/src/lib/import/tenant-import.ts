@@ -18,6 +18,7 @@ import {
 import { readXlsxTables, validateImportWorkbookRows, validateImportWorkbookSheets, type WorkbookRow } from "./workbook-validation";
 
 const TEMP_PASSWORD = "ChangeMe123!";
+const IMPORT_ROLES = new Set(["OWNER", "ADMIN", "STATION_MANAGER", "SUPERVISOR", "ATTENDANT", "ACCOUNTANT", "AUDITOR"]);
 
 type ImportCounts = {
   tenants: number;
@@ -99,6 +100,13 @@ function initials(name: string): string {
     .join("");
 }
 
+function normalizeImportRole(value: string): string {
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (normalized === "MANAGER" || normalized === "STATION_MANAGER") return "STATION_MANAGER";
+  if (normalized === "ATENDANT") return "ATTENDANT";
+  return normalized;
+}
+
 function sheet(tables: Record<string, WorkbookRow[]>, name: string): WorkbookRow[] {
   return tables[name] ?? [];
 }
@@ -112,6 +120,20 @@ function text(row: WorkbookRow, key: string, required = false): string {
   const result = value === null ? "" : String(value).trim();
   if (required && !result) throw new Error(`${key} is required`);
   return result;
+}
+
+function importRowError(sheetName: string, rowNumber: number, field: string, message: string, row: WorkbookRow): Error {
+  const values = Object.entries(row)
+    .filter(([key, value]) => !key.startsWith("__") && value !== null && value !== "")
+    .slice(0, 8)
+    .map(([key, value]) => `${key}='${String(value)}'`)
+    .join(", ");
+  return new Error(`${sheetName} row ${rowNumber}, ${field}: ${message}${values ? `. Offending values: ${values}` : ""}`);
+}
+
+function spreadsheetRowNumber(row: WorkbookRow, fallback: number): number {
+  const value = row.__rowNumber;
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 function optionalText(row: WorkbookRow, key: string): string | null {
@@ -172,7 +194,7 @@ function requireMapValue(map: Map<string, string>, key: string, label: string): 
 }
 
 function statusValue(row: WorkbookRow, key: string, fallback: string): string {
-  return text(row, key) || fallback;
+  return (text(row, key) || fallback).trim().toUpperCase().replace(/[\s-]+/g, "_");
 }
 
 async function createSetupRecords(
@@ -238,13 +260,20 @@ async function createSetupRecords(
   }
 
   const passwordHash = await bcrypt.hash(TEMP_PASSWORD, 10);
-  for (const row of sheet(tables, "Users")) {
+  for (const [index, row] of sheet(tables, "Users").entries()) {
+    const rowNumber = spreadsheetRowNumber(row, index + 2);
     if (text(row, "CompanyCode").toUpperCase() !== companyCode) continue;
     const stationOrEmail = text(row, "StationCode");
     const importedEmail = text(row, "Email") || (stationOrEmail.includes("@") ? stationOrEmail : "");
     const email = importedEmail.trim().toLowerCase();
-    if (!email) throw new Error("Email is required");
-    const name = text(row, "Name", true);
+    if (!email) throw importRowError("Users", rowNumber, "Email", "Email is required", row);
+    const name = text(row, "Name");
+    if (!name) throw importRowError("Users", rowNumber, "Name", "Name is required", row);
+    const role = normalizeImportRole(text(row, "Role"));
+    if (!role) throw importRowError("Users", rowNumber, "Role", "Role is required", row);
+    if (!IMPORT_ROLES.has(role)) {
+      throw importRowError("Users", rowNumber, "Role", `Role must be one of ${[...IMPORT_ROLES].join(", ")}`, row);
+    }
     const stationCode = stationOrEmail.includes("@") ? "" : stationOrEmail.toUpperCase();
     const userStatus = statusValue(row, "Status", "ACTIVE");
     const forcePasswordChange = boolValue(row, "ForcePasswordChange", true);
@@ -254,7 +283,7 @@ async function createSetupRecords(
         where: { userId: existingUser.id, tenantId: { not: tenant.id } },
         select: { id: true },
       });
-      if (otherMembership) throw new Error(`User email already belongs to another tenant: ${email}`);
+      if (otherMembership) throw importRowError("Users", rowNumber, "Email", `User email already belongs to another tenant: ${email}`, row);
     }
 
     const user = existingUser
@@ -283,7 +312,7 @@ async function createSetupRecords(
         tenantId: tenant.id,
         userId: user.id,
         stationId: stationCode ? requireMapValue(stationIds, stationCode, "Station") : "",
-        role: text(row, "Role", true).toUpperCase(),
+        role,
       },
     });
     counts.users += 1;

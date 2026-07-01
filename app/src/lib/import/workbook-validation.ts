@@ -42,11 +42,15 @@ export type ImportRowIssue = {
   rowNumber: number;
   field: string;
   message: string;
+  cells?: string[];
 };
 
 export type WorkbookCellValue = string | number | boolean | null;
 export type WorkbookRow = Record<string, WorkbookCellValue>;
 export type WorkbookTables = Record<string, WorkbookRow[]>;
+
+const META_ROW_NUMBER = "__rowNumber";
+const META_CELL_PREFIX = "__cell:";
 
 type ZipEntry = {
   fileName: string;
@@ -58,6 +62,11 @@ type ZipEntry = {
 type WorkbookSheetRef = {
   name: string;
   relationshipId: string;
+};
+
+type ParsedWorksheetRow = {
+  rowNumber: number;
+  cells: WorkbookCellValue[];
 };
 
 function decodeXml(value: string): string {
@@ -182,6 +191,7 @@ export function validateImportWorkbookSheets(sheetNames: string[]): ImportWorkbo
 const STOCK_ADJUSTMENT_TYPES = new Set(["REGULATORY_INSPECTION", "STOCK_CORRECTION", "EVAPORATION", "OTHER"]);
 const STOCK_ADJUSTMENT_DIRECTIONS = new Set(["IN", "OUT"]);
 const STOCK_ADJUSTMENT_APPROVAL_STATUSES = new Set(["PENDING", "APPROVED", "REJECTED"]);
+const IMPORT_ROLES = new Set(["OWNER", "ADMIN", "STATION_MANAGER", "SUPERVISOR", "ATTENDANT", "ACCOUNTANT", "AUDITOR"]);
 const SESSION_REFERENCING_SHEETS = [
   "Pump Readings",
   "Tank Dipping",
@@ -204,8 +214,92 @@ const STATION_SCOPED_TRANSACTION_SHEETS = [
   "Cash Collections",
 ] as const;
 
-function issue(sheet: string, rowNumber: number, field: string, message: string): ImportRowIssue {
-  return { sheet, rowNumber, field, message };
+function issue(sheet: string, rowNumber: number, field: string, message: string, cells?: string[]): ImportRowIssue {
+  return { sheet, rowNumber, field, message, ...(cells && cells.length > 0 ? { cells } : {}) };
+}
+
+function issueRowNumber(row: WorkbookRow, fallback: number): number {
+  const value = row[META_ROW_NUMBER];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function rowCell(row: WorkbookRow, field: string): string | undefined {
+  const value = row[`${META_CELL_PREFIX}${field}`];
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function rowCells(row: WorkbookRow, fields: string[]): string[] {
+  return fields.map((field) => rowCell(row, field)).filter((cell): cell is string => Boolean(cell));
+}
+
+function issueForRow(sheet: string, row: WorkbookRow, fallbackRowNumber: number, field: string, message: string): ImportRowIssue {
+  return issue(sheet, issueRowNumber(row, fallbackRowNumber), field, message, rowCells(row, [field]));
+}
+
+function normalizeImportRole(value: string): string {
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  if (normalized === "MANAGER" || normalized === "STATION_MANAGER") return "STATION_MANAGER";
+  if (normalized === "ATENDANT") return "ATTENDANT";
+  return normalized;
+}
+
+function requiredFieldIssues(tables: WorkbookTables): ImportRowIssue[] {
+  const errors: ImportRowIssue[] = [];
+
+  (tables["Users"] ?? []).forEach((row, index) => {
+    const rowNumber = issueRowNumber(row, index + 2);
+    const stationCode = rowText(row, "StationCode");
+    const email = rowText(row, "Email") || (stationCode.includes("@") ? stationCode : "");
+    if (!email) {
+      errors.push(
+        issue(
+          "Users",
+          rowNumber,
+          "Email",
+          `Email is required. Offending values: StationCode='${stationCode}', Email='${rowText(row, "Email")}'.`,
+          rowCells(row, ["Email", "StationCode"])
+        )
+      );
+    }
+    if (!rowText(row, "Name")) {
+      errors.push(issueForRow("Users", row, rowNumber, "Name", "Name is required"));
+    }
+    const role = rowText(row, "Role");
+    const normalizedRole = normalizeImportRole(role);
+    if (!role) {
+      errors.push(issueForRow("Users", row, rowNumber, "Role", "Role is required"));
+    } else if (!IMPORT_ROLES.has(normalizedRole)) {
+      errors.push(
+        issue(
+          "Users",
+          rowNumber,
+          "Role",
+          `Role must be one of ${[...IMPORT_ROLES].join(", ")}. Offending data: Role='${role}'.`,
+          rowCells(row, ["Role"])
+        )
+      );
+    }
+  });
+
+  (tables["Lube Sales"] ?? []).forEach((row, index) => {
+    const rowNumber = issueRowNumber(row, index + 2);
+    const companyCode = rowText(row, "CompanyCode");
+    if (!companyCode) return;
+    if (!rowText(row, "SaleRef")) {
+      errors.push(issueForRow("Lube Sales", row, rowNumber, "SaleRef", "SaleRef is required"));
+    }
+    if (!rowText(row, "VehicleReg")) {
+      errors.push(issueForRow("Lube Sales", row, rowNumber, "VehicleReg", "VehicleReg is required"));
+    }
+    if (!rowText(row, "ServiceType")) {
+      errors.push(issueForRow("Lube Sales", row, rowNumber, "ServiceType", "ServiceType is required"));
+    }
+    if (!rowText(row, "VehicleCategory")) {
+      errors.push(issueForRow("Lube Sales", row, rowNumber, "VehicleCategory", "VehicleCategory is required"));
+    }
+  });
+
+  return errors;
 }
 
 function rowText(row: WorkbookRow, key: string): string {
@@ -218,6 +312,99 @@ function rowNumberValue(row: WorkbookRow, key: string): number | null {
   if (value === null || value === undefined || value === "") return null;
   const parsed = typeof value === "number" ? value : Number(String(value).replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function numericFieldIssues(tables: WorkbookTables): ImportRowIssue[] {
+  const errors: ImportRowIssue[] = [];
+  const numericFieldsBySheet: Record<string, string[]> = {
+    Companies: ["MaxStations", "MaxTanks", "MaxPumps"],
+    "Product Prices": ["UnitPrice"],
+    Tanks: ["CapacityLitres"],
+    Debtors: ["CreditLimit", "OpeningBalance"],
+    "Lube Service Types": ["DefaultLabourCharge"],
+    "Pump Readings": ["OpeningMeter", "ClosingMeter", "LitresSold", "UnitPrice", "ExpectedAmount", "CashReceived", "GOCardVisa", "Coupon", "GHQRMoMo", "CreditSales"],
+    "Stock Adjustments": ["Litres"],
+    "Tank Dipping": ["OpeningStockLitres", "ReceiptsLitres", "MeterSoldLitres", "ClosingDipCm", "ClosingStockLitres"],
+    "Product Discharge": ["BeforeTankLitres", "DischargedLitres", "AdjustmentTopUpLitres", "AfterTankLitres", "CouplingHeightCm", "InvoiceMeasurement", "StationMeasurement", "TBar"],
+    Expenditure: ["Amount"],
+    "Mart Sales": ["OpeningCash", "CardSales", "CashSales", "MomoSales", "Returns", "PhysicalCashCount"],
+    "Lube Sale Lines": ["Quantity", "UnitPrice"],
+    "Lube Sales": ["LabourCharge", "Discount", "CashAmount", "CardAmount", "MomoAmount", "CreditAmount"],
+    "Debtor Ledger": ["Amount"],
+    "Payment Details": ["Amount"],
+    "Cash Collections": ["ExpectedCash", "AmountToBank"],
+  };
+
+  Object.entries(numericFieldsBySheet).forEach(([sheetName, fields]) => {
+    (tables[sheetName] ?? []).forEach((row, index) => {
+      const rowNumber = issueRowNumber(row, index + 2);
+      fields.forEach((field) => {
+        const value = row[field];
+        if (value === null || value === undefined || value === "") return;
+        if (rowNumberValue(row, field) === null) {
+          errors.push(
+            issue(
+              sheetName,
+              rowNumber,
+              field,
+              `${field} must be a valid number. Offending data: ${field}='${String(value)}'.`,
+              rowCells(row, [field])
+            )
+          );
+        }
+      });
+    });
+  });
+
+  return errors;
+}
+
+function duplicateUniqueKeyIssues(tables: WorkbookTables): ImportRowIssue[] {
+  const errors: ImportRowIssue[] = [];
+  const checks = [
+    {
+      sheetName: "Pump Readings",
+      fields: ["StationCode", "BusinessDate", "Shift", "PumpName", "NozzleName"],
+      label: "station/date/shift/pump/nozzle",
+    },
+    {
+      sheetName: "Tank Dipping",
+      fields: ["StationCode", "BusinessDate", "Shift", "TankName"],
+      label: "station/date/shift/tank",
+    },
+  ];
+
+  checks.forEach(({ sheetName, fields, label }) => {
+    const seen = new Map<string, { rowNumber: number; cells: string[] }[]>();
+    (tables[sheetName] ?? []).forEach((row, index) => {
+      const rowNumber = issueRowNumber(row, index + 2);
+      const key = fields
+        .map((field) => {
+          if (field === "BusinessDate") return rowDateKey(row, field) ?? rowText(row, field);
+          if (field === "Shift") return (rowText(row, field) || "DAY").toUpperCase();
+          return rowText(row, field);
+        })
+        .join("|");
+      if (key.split("|").some((part) => !part)) return;
+      seen.set(key, [...(seen.get(key) ?? []), { rowNumber, cells: rowCells(row, fields) }]);
+    });
+
+    seen.forEach((occurrences, key) => {
+      const rows = occurrences.map((occurrence) => occurrence.rowNumber);
+      if (rows.length <= 1) return;
+      errors.push(
+        issue(
+          sheetName,
+          rows[0],
+          fields.join(" + "),
+          `Duplicate ${label} rows are not allowed. Offending key='${key}'. Rows: ${rows.join(", ")}.`,
+          occurrences.flatMap((occurrence) => occurrence.cells)
+        )
+      );
+    });
+  });
+
+  return errors;
 }
 
 function excelSerialDate(serial: number): Date {
@@ -260,14 +447,16 @@ function addMissingReferenceIssue(
   field: string,
   key: string,
   label: string,
-  sourceSheet: string
+  sourceSheet: string,
+  cells?: string[]
 ) {
   errors.push(
     issue(
       sheet,
       rowNumber,
       field,
-      `${label} was not found for '${key}'. Offending data: ${field}='${key}'. Add or correct the matching row in ${sourceSheet}.`
+      `${label} was not found for '${key}'. Offending data: ${field}='${key}'. Add or correct the matching row in ${sourceSheet}.`,
+      cells
     )
   );
 }
@@ -295,11 +484,11 @@ function validateEntityReferences(tables: WorkbookTables): ImportRowIssue[] {
   function validateStation(sheetName: string, row: WorkbookRow, rowNumber: number): string {
     const stationCode = rowText(row, "StationCode").toUpperCase();
     if (!stationCode) {
-      errors.push(issue(sheetName, rowNumber, "StationCode", "StationCode is required"));
+      errors.push(issue(sheetName, rowNumber, "StationCode", "StationCode is required", rowCells(row, ["StationCode"])));
       return "";
     }
     if (!stations.has(stationCode)) {
-      addMissingReferenceIssue(errors, sheetName, rowNumber, "StationCode", stationCode, "Station", "Stations");
+      addMissingReferenceIssue(errors, sheetName, rowNumber, "StationCode", stationCode, "Station", "Stations", rowCells(row, ["StationCode"]));
     }
     return stationCode;
   }
@@ -307,102 +496,102 @@ function validateEntityReferences(tables: WorkbookTables): ImportRowIssue[] {
   function validateProduct(sheetName: string, row: WorkbookRow, rowNumber: number): string {
     const productName = rowText(row, "ProductName");
     if (!productName) {
-      errors.push(issue(sheetName, rowNumber, "ProductName", "ProductName is required"));
+      errors.push(issue(sheetName, rowNumber, "ProductName", "ProductName is required", rowCells(row, ["ProductName"])));
       return "";
     }
     if (!products.has(productName)) {
-      addMissingReferenceIssue(errors, sheetName, rowNumber, "ProductName", productName, "Product", "Products");
+      addMissingReferenceIssue(errors, sheetName, rowNumber, "ProductName", productName, "Product", "Products", rowCells(row, ["ProductName"]));
     }
     return productName;
   }
 
   (tables["Product Prices"] ?? []).forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     validateStation("Product Prices", row, rowNumber);
     validateProduct("Product Prices", row, rowNumber);
   });
 
   (tables["Tanks"] ?? []).forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     const stationCode = validateStation("Tanks", row, rowNumber);
     validateProduct("Tanks", row, rowNumber);
     const tankName = rowText(row, "TankName");
     if (!tankName) {
-      errors.push(issue("Tanks", rowNumber, "TankName", "TankName is required"));
+      errors.push(issue("Tanks", rowNumber, "TankName", "TankName is required", rowCells(row, ["TankName"])));
       return;
     }
     if (stationCode) tanks.add(stationScopedKey(stationCode, tankName));
   });
 
   (tables["Pumps"] ?? []).forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     const stationCode = validateStation("Pumps", row, rowNumber);
     const pumpName = rowText(row, "PumpName");
     if (!pumpName) {
-      errors.push(issue("Pumps", rowNumber, "PumpName", "PumpName is required"));
+      errors.push(issue("Pumps", rowNumber, "PumpName", "PumpName is required", rowCells(row, ["PumpName"])));
       return;
     }
     if (stationCode) pumps.add(stationScopedKey(stationCode, pumpName));
   });
 
   (tables["Nozzles"] ?? []).forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     const stationCode = validateStation("Nozzles", row, rowNumber);
     validateProduct("Nozzles", row, rowNumber);
     const pumpName = rowText(row, "PumpName");
     const nozzleName = rowText(row, "NozzleName");
     if (!pumpName) {
-      errors.push(issue("Nozzles", rowNumber, "PumpName", "PumpName is required"));
+      errors.push(issue("Nozzles", rowNumber, "PumpName", "PumpName is required", rowCells(row, ["PumpName"])));
     } else if (stationCode && !pumps.has(stationScopedKey(stationCode, pumpName))) {
-      addMissingReferenceIssue(errors, "Nozzles", rowNumber, "StationCode + PumpName", stationScopedKey(stationCode, pumpName), "Pump", "Pumps");
+      addMissingReferenceIssue(errors, "Nozzles", rowNumber, "StationCode + PumpName", stationScopedKey(stationCode, pumpName), "Pump", "Pumps", rowCells(row, ["StationCode", "PumpName"]));
     }
     if (!nozzleName) {
-      errors.push(issue("Nozzles", rowNumber, "NozzleName", "NozzleName is required"));
+      errors.push(issue("Nozzles", rowNumber, "NozzleName", "NozzleName is required", rowCells(row, ["NozzleName"])));
       return;
     }
     if (stationCode && pumpName) nozzles.add(nozzleKey(stationCode, pumpName, nozzleName));
   });
 
   (tables["Debtors"] ?? []).forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     const stationCode = validateStation("Debtors", row, rowNumber);
     const debtorName = rowText(row, "DebtorName");
     if (!debtorName) {
-      errors.push(issue("Debtors", rowNumber, "DebtorName", "DebtorName is required"));
+      errors.push(issue("Debtors", rowNumber, "DebtorName", "DebtorName is required", rowCells(row, ["DebtorName"])));
       return;
     }
     if (stationCode) debtors.add(stationScopedKey(stationCode, debtorName));
   });
 
   (tables["Lube Service Types"] ?? []).forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     const stationCode = rowText(row, "StationCode").toUpperCase();
     if (stationCode && !stations.has(stationCode)) {
-      addMissingReferenceIssue(errors, "Lube Service Types", rowNumber, "StationCode", stationCode, "Station", "Stations");
+      addMissingReferenceIssue(errors, "Lube Service Types", rowNumber, "StationCode", stationCode, "Station", "Stations", rowCells(row, ["StationCode"]));
     }
     const serviceName = rowText(row, "ServiceName") || rowText(row, "StationCode");
     const vehicleCategory = rowText(row, "VehicleCategory");
-    if (!serviceName) errors.push(issue("Lube Service Types", rowNumber, "ServiceName", "ServiceName is required"));
-    if (!vehicleCategory) errors.push(issue("Lube Service Types", rowNumber, "VehicleCategory", "VehicleCategory is required"));
+    if (!serviceName) errors.push(issue("Lube Service Types", rowNumber, "ServiceName", "ServiceName is required", rowCells(row, ["ServiceName"])));
+    if (!vehicleCategory) errors.push(issue("Lube Service Types", rowNumber, "VehicleCategory", "VehicleCategory is required", rowCells(row, ["VehicleCategory"])));
     if (serviceName && vehicleCategory) serviceTypes.add(`${serviceName}|${vehicleCategory}`);
   });
 
   (tables["MoMo Operators"] ?? []).forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     const stationCode = rowText(row, "StationCode").toUpperCase();
     if (stationCode && !stations.has(stationCode)) {
-      addMissingReferenceIssue(errors, "MoMo Operators", rowNumber, "StationCode", stationCode, "Station", "Stations");
+      addMissingReferenceIssue(errors, "MoMo Operators", rowNumber, "StationCode", stationCode, "Station", "Stations", rowCells(row, ["StationCode"]));
     }
   });
 
   (tables["Pump Readings"] ?? []).forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     const stationCode = validateStation("Pump Readings", row, rowNumber);
     validateProduct("Pump Readings", row, rowNumber);
     const pumpName = rowText(row, "PumpName");
     const nozzleName = rowText(row, "NozzleName");
     if (stationCode && pumpName && !pumps.has(stationScopedKey(stationCode, pumpName))) {
-      addMissingReferenceIssue(errors, "Pump Readings", rowNumber, "StationCode + PumpName", stationScopedKey(stationCode, pumpName), "Pump", "Pumps");
+      addMissingReferenceIssue(errors, "Pump Readings", rowNumber, "StationCode + PumpName", stationScopedKey(stationCode, pumpName), "Pump", "Pumps", rowCells(row, ["StationCode", "PumpName"]));
     }
     if (stationCode && pumpName && nozzleName && !nozzles.has(nozzleKey(stationCode, pumpName, nozzleName))) {
       addMissingReferenceIssue(
@@ -412,55 +601,61 @@ function validateEntityReferences(tables: WorkbookTables): ImportRowIssue[] {
         "StationCode + PumpName + NozzleName",
         nozzleKey(stationCode, pumpName, nozzleName),
         "Nozzle",
-        "Nozzles"
+        "Nozzles",
+        rowCells(row, ["StationCode", "PumpName", "NozzleName"])
       );
     }
   });
 
   ["Tank Dipping", "Product Discharge", "Stock Adjustments"].forEach((sheetName) => {
     (tables[sheetName] ?? []).forEach((row, index) => {
-      const rowNumber = index + 2;
+      const rowNumber = issueRowNumber(row, index + 2);
       const stationCode = validateStation(sheetName, row, rowNumber);
       validateProduct(sheetName, row, rowNumber);
       const tankName = rowText(row, "TankName");
       if (!tankName) {
-        errors.push(issue(sheetName, rowNumber, "TankName", "TankName is required"));
+        errors.push(issue(sheetName, rowNumber, "TankName", "TankName is required", rowCells(row, ["TankName"])));
       } else if (stationCode && !tanks.has(stationScopedKey(stationCode, tankName))) {
-        addMissingReferenceIssue(errors, sheetName, rowNumber, "StationCode + TankName", stationScopedKey(stationCode, tankName), "Tank", "Tanks");
+        addMissingReferenceIssue(errors, sheetName, rowNumber, "StationCode + TankName", stationScopedKey(stationCode, tankName), "Tank", "Tanks", rowCells(row, ["StationCode", "TankName"]));
       }
     });
   });
 
   STATION_SCOPED_TRANSACTION_SHEETS.forEach((sheetName) => {
     (tables[sheetName] ?? []).forEach((row, index) => {
-      validateStation(sheetName, row, index + 2);
+      validateStation(sheetName, row, issueRowNumber(row, index + 2));
     });
   });
 
   (tables["Debtor Ledger"] ?? []).forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     const stationCode = rowText(row, "StationCode").toUpperCase();
     const debtorName = rowText(row, "DebtorName");
     if (stationCode && debtorName && !debtors.has(stationScopedKey(stationCode, debtorName))) {
-      addMissingReferenceIssue(errors, "Debtor Ledger", rowNumber, "StationCode + DebtorName", stationScopedKey(stationCode, debtorName), "Debtor", "Debtors");
+      addMissingReferenceIssue(errors, "Debtor Ledger", rowNumber, "StationCode + DebtorName", stationScopedKey(stationCode, debtorName), "Debtor", "Debtors", rowCells(row, ["StationCode", "DebtorName"]));
+    }
+    const type = rowText(row, "Type").toUpperCase();
+    const productName = rowText(row, "ProductName");
+    if (type === "SALE" && productName && !products.has(productName)) {
+      addMissingReferenceIssue(errors, "Debtor Ledger", rowNumber, "ProductName", productName, "Product", "Products", rowCells(row, ["ProductName"]));
     }
   });
 
   (tables["Payment Details"] ?? []).forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     const stationCode = rowText(row, "StationCode").toUpperCase();
     const debtorName = rowText(row, "DebtorName");
     if (stationCode && debtorName && !debtors.has(stationScopedKey(stationCode, debtorName))) {
-      addMissingReferenceIssue(errors, "Payment Details", rowNumber, "StationCode + DebtorName", stationScopedKey(stationCode, debtorName), "Debtor", "Debtors");
+      addMissingReferenceIssue(errors, "Payment Details", rowNumber, "StationCode + DebtorName", stationScopedKey(stationCode, debtorName), "Debtor", "Debtors", rowCells(row, ["StationCode", "DebtorName"]));
     }
   });
 
   (tables["Lube Sales"] ?? []).forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     const serviceName = rowText(row, "ServiceType");
     const vehicleCategory = rowText(row, "VehicleCategory");
     if (serviceName && vehicleCategory && !serviceTypes.has(`${serviceName}|${vehicleCategory}`)) {
-      addMissingReferenceIssue(errors, "Lube Sales", rowNumber, "ServiceType + VehicleCategory", `${serviceName}|${vehicleCategory}`, "Service type", "Lube Service Types");
+      addMissingReferenceIssue(errors, "Lube Sales", rowNumber, "ServiceType + VehicleCategory", `${serviceName}|${vehicleCategory}`, "Service type", "Lube Service Types", rowCells(row, ["ServiceType", "VehicleCategory"]));
     }
   });
 
@@ -478,18 +673,18 @@ function validateDailySessionReferences(tables: WorkbookTables): ImportRowIssue[
 
   SESSION_REFERENCING_SHEETS.forEach((sheetName) => {
     (tables[sheetName] ?? []).forEach((row, index) => {
-      const rowNumber = index + 2;
+      const rowNumber = issueRowNumber(row, index + 2);
       const stationCode = rowText(row, "StationCode").toUpperCase();
       const businessDate = rowDateKey(row, "BusinessDate");
       const rawBusinessDate = rowText(row, "BusinessDate");
       const shift = (rowText(row, "Shift") || "DAY").toUpperCase();
 
       if (!stationCode) {
-        errors.push(issue(sheetName, rowNumber, "StationCode", "StationCode is required to match a Daily Sessions row"));
+        errors.push(issue(sheetName, rowNumber, "StationCode", "StationCode is required to match a Daily Sessions row", rowCells(row, ["StationCode"])));
         return;
       }
       if (!businessDate) {
-        errors.push(issue(sheetName, rowNumber, "BusinessDate", `BusinessDate is invalid or missing: '${rawBusinessDate}'`));
+        errors.push(issue(sheetName, rowNumber, "BusinessDate", `BusinessDate is invalid or missing: '${rawBusinessDate}'`, rowCells(row, ["BusinessDate"])));
         return;
       }
 
@@ -500,7 +695,8 @@ function validateDailySessionReferences(tables: WorkbookTables): ImportRowIssue[
             sheetName,
             rowNumber,
             "StationCode + BusinessDate + Shift",
-            `Daily session was not found for '${key}'. Offending values: StationCode='${stationCode}', BusinessDate='${businessDate}', Shift='${shift}'. Add a matching row in Daily Sessions.`
+            `Daily session was not found for '${key}'. Offending values: StationCode='${stationCode}', BusinessDate='${businessDate}', Shift='${shift}'. Add a matching row in Daily Sessions.`,
+            rowCells(row, ["StationCode", "BusinessDate", "Shift"])
           )
         );
       }
@@ -515,7 +711,7 @@ function validateStockAdjustmentRows(rows: WorkbookRow[]): { errors: ImportRowIs
   const warnings: ImportRowIssue[] = [];
 
   rows.forEach((row, index) => {
-    const rowNumber = index + 2;
+    const rowNumber = issueRowNumber(row, index + 2);
     const requiredFields = [
       "CompanyCode",
       "StationCode",
@@ -529,7 +725,7 @@ function validateStockAdjustmentRows(rows: WorkbookRow[]): { errors: ImportRowIs
 
     requiredFields.forEach((field) => {
       if (!rowText(row, field)) {
-        errors.push(issue("Stock Adjustments", rowNumber, field, `${field} is required`));
+        errors.push(issue("Stock Adjustments", rowNumber, field, `${field} is required`, rowCells(row, [field])));
       }
     });
 
@@ -550,27 +746,27 @@ function validateStockAdjustmentRows(rows: WorkbookRow[]): { errors: ImportRowIs
     }
 
     if (direction && !STOCK_ADJUSTMENT_DIRECTIONS.has(direction)) {
-      errors.push(issue("Stock Adjustments", rowNumber, "Direction", "Direction must be IN or OUT"));
+      errors.push(issue("Stock Adjustments", rowNumber, "Direction", "Direction must be IN or OUT", rowCells(row, ["Direction"])));
     }
 
     if (litres === null || litres <= 0) {
-      errors.push(issue("Stock Adjustments", rowNumber, "Litres", "Litres must be greater than 0"));
+      errors.push(issue("Stock Adjustments", rowNumber, "Litres", "Litres must be greater than 0", rowCells(row, ["Litres"])));
     }
 
     if (approvalStatus && !STOCK_ADJUSTMENT_APPROVAL_STATUSES.has(approvalStatus)) {
-      errors.push(issue("Stock Adjustments", rowNumber, "ApprovalStatus", "ApprovalStatus must be PENDING, APPROVED, or REJECTED"));
+      errors.push(issue("Stock Adjustments", rowNumber, "ApprovalStatus", "ApprovalStatus must be PENDING, APPROVED, or REJECTED", rowCells(row, ["ApprovalStatus"])));
     }
 
     if (adjustmentType === "REGULATORY_INSPECTION" && direction && direction !== "OUT") {
-      errors.push(issue("Stock Adjustments", rowNumber, "Direction", "Regulatory inspection draw-offs must use Direction OUT"));
+      errors.push(issue("Stock Adjustments", rowNumber, "Direction", "Regulatory inspection draw-offs must use Direction OUT", rowCells(row, ["Direction"])));
     }
 
     if (adjustmentType === "REGULATORY_INSPECTION" && !rowText(row, "Reference")) {
-      warnings.push(issue("Stock Adjustments", rowNumber, "Reference", "Add the NPA inspection reference where available"));
+      warnings.push(issue("Stock Adjustments", rowNumber, "Reference", "Add the NPA inspection reference where available", rowCells(row, ["Reference"])));
     }
 
     if (!rowText(row, "ApprovedBy")) {
-      warnings.push(issue("Stock Adjustments", rowNumber, "ApprovedBy", "ApprovedBy is recommended for audit control"));
+      warnings.push(issue("Stock Adjustments", rowNumber, "ApprovedBy", "ApprovedBy is recommended for audit control", rowCells(row, ["ApprovedBy"])));
     }
   });
 
@@ -581,7 +777,14 @@ export function validateImportWorkbookRows(tables: WorkbookTables): Pick<ImportW
   const stockAdjustments = tables["Stock Adjustments"] ?? [];
   const stockAdjustmentIssues = validateStockAdjustmentRows(stockAdjustments);
   return {
-    rowErrors: [...validateDailySessionReferences(tables), ...validateEntityReferences(tables), ...stockAdjustmentIssues.errors],
+    rowErrors: [
+      ...requiredFieldIssues(tables),
+      ...numericFieldIssues(tables),
+      ...duplicateUniqueKeyIssues(tables),
+      ...validateDailySessionReferences(tables),
+      ...validateEntityReferences(tables),
+      ...stockAdjustmentIssues.errors,
+    ],
     rowWarnings: stockAdjustmentIssues.warnings,
   };
 }
@@ -627,6 +830,17 @@ function columnIndexFromCellRef(cellRef: string): number {
   return letters.toUpperCase().split("").reduce((sum, letter) => sum * 26 + letter.charCodeAt(0) - 64, 0) - 1;
 }
 
+function columnLabelFromIndex(index: number): string {
+  let value = index + 1;
+  let label = "";
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    label = String.fromCharCode(65 + remainder) + label;
+    value = Math.floor((value - 1) / 26);
+  }
+  return label;
+}
+
 function extractCellValue(cellXml: string, sharedStrings: string[]): WorkbookCellValue {
   const type = /\bt=(?:"([^"]+)"|'([^']+)')/.exec(cellXml);
   const cellType = type ? type[1] ?? type[2] : "";
@@ -647,27 +861,56 @@ function extractCellValue(cellXml: string, sharedStrings: string[]): WorkbookCel
   return Number.isFinite(numeric) ? numeric : raw;
 }
 
-function parseWorksheetRows(xml: string, sharedStrings: string[]): WorkbookCellValue[][] {
-  const rows: WorkbookCellValue[][] = [];
-  const rowPattern = /<(?:\w+:)?row\b[^>]*>([\s\S]*?)<\/(?:\w+:)?row>/g;
+function parseWorksheetRows(xml: string, sharedStrings: string[]): ParsedWorksheetRow[] {
+  const rows: ParsedWorksheetRow[] = [];
+  const rowPattern = /<(?:\w+:)?row\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?row>/g;
   let rowMatch: RegExpExecArray | null;
   while ((rowMatch = rowPattern.exec(xml)) !== null) {
     const cells: WorkbookCellValue[] = [];
-    const cellPattern = /<(?:\w+:)?c\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?c>/g;
+    const rowAttributes = rowMatch[1];
+    const rawRowNumber = /\br=(?:"([^"]+)"|'([^']+)')/.exec(rowAttributes);
+    const rowNumber = rawRowNumber ? Number(rawRowNumber[1] ?? rawRowNumber[2]) : rows.length + 1;
+    const cellPattern = /<(?:\w+:)?c\b([^>]*?)\/>|<(?:\w+:)?c\b([^>]*)>([\s\S]*?)<\/(?:\w+:)?c>/g;
     let cellMatch: RegExpExecArray | null;
-    while ((cellMatch = cellPattern.exec(rowMatch[1])) !== null) {
-      const attributes = cellMatch[1];
+    while ((cellMatch = cellPattern.exec(rowMatch[2])) !== null) {
+      const attributes = cellMatch[1] ?? cellMatch[2] ?? "";
       const cellRef = /\br=(?:"([^"]+)"|'([^']+)')/.exec(attributes);
       const columnIndex = cellRef ? columnIndexFromCellRef(cellRef[1] ?? cellRef[2] ?? "") : cells.length;
       cells[columnIndex] = extractCellValue(cellMatch[0], sharedStrings);
     }
-    rows.push(cells);
+    rows.push({ rowNumber: Number.isFinite(rowNumber) ? rowNumber : rows.length + 1, cells });
   }
   return rows;
 }
 
 function trimHeader(value: WorkbookCellValue): string {
   return String(value ?? "").trim();
+}
+
+function hasMeaningfulImportCells(sheetName: string, record: WorkbookRow): boolean {
+  const text = (field: string) => rowText(record, field);
+  if (sheetName === "Lube Sales") {
+    return ["SaleRef", "VehicleReg", "ServiceType", "VehicleCategory", "CustomerName", "CashAmount", "CardAmount", "MomoAmount", "CreditAmount"].some(
+      (field) => text(field) !== ""
+    );
+  }
+  if (sheetName === "Lube Sale Lines") {
+    return ["SaleRef", "ProductName", "Quantity", "UnitPrice"].some((field) => text(field) !== "");
+  }
+  if (sheetName === "Pump Readings") {
+    return [
+      "BusinessDate",
+      "OpeningMeter",
+      "ClosingMeter",
+      "CashReceived",
+      "GOCardVisa",
+      "Coupon",
+      "GHQRMoMo",
+      "CreditSales",
+      "Remarks",
+    ].some((field) => text(field) !== "");
+  }
+  return Object.entries(record).some(([key, value]) => !key.startsWith("__") && value !== null && value !== undefined && String(value).trim() !== "");
 }
 
 export function readXlsxTables(buffer: Buffer): WorkbookTables {
@@ -685,7 +928,7 @@ export function readXlsxTables(buffer: Buffer): WorkbookTables {
 
     const rows = parseWorksheetRows(readZipEntry(buffer, entry).toString("utf8"), sharedStrings);
     const headerIndex = rows.findIndex((row) => {
-      const headers = new Set(row.map(trimHeader));
+      const headers = new Set(row.cells.map(trimHeader));
       return headers.has("CompanyCode") || (headers.has("SaleRef") && headers.has("ProductName") && headers.has("Quantity"));
     });
     if (headerIndex === -1) {
@@ -693,17 +936,21 @@ export function readXlsxTables(buffer: Buffer): WorkbookTables {
       continue;
     }
 
-    const headers = rows[headerIndex].map(trimHeader);
+    const headers = rows[headerIndex].cells.map(trimHeader);
     const hasCompanyCode = headers.includes("CompanyCode");
     const dataRows = rows.slice(headerIndex + 1)
-      .filter((row) => row.some((cell) => cell !== null && cell !== undefined && String(cell).trim() !== ""))
       .map((row) => {
         const record: WorkbookRow = {};
+        record[META_ROW_NUMBER] = row.rowNumber;
         headers.forEach((header, index) => {
-          if (header) record[header] = row[index] ?? null;
+          if (header) {
+            record[header] = row.cells[index] ?? null;
+            record[`${META_CELL_PREFIX}${header}`] = `${columnLabelFromIndex(index)}${row.rowNumber}`;
+          }
         });
         return record;
       })
+      .filter((record) => hasMeaningfulImportCells(sheet.name, record))
       .filter((record) => !hasCompanyCode || String(record.CompanyCode ?? "").trim() !== "");
     tables[sheet.name] = dataRows;
   }

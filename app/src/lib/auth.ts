@@ -59,7 +59,7 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
         const hashToCheck = user?.passwordHash ?? DUMMY_HASH;
         const isValid = await bcrypt.compare(password, hashToCheck);
 
-        if (!user || !isValid || user.status !== "ACTIVE") {
+        if (!user || !isValid || user.status.toUpperCase() !== "ACTIVE") {
           // Return null → NextAuth maps this to a CredentialsSignin error
           // The login page renders a generic message; we never expose which check failed.
           return null;
@@ -90,7 +90,8 @@ export const { handlers, auth, signIn, signOut, unstable_update: updateSession }
           where: { id: membership.tenantId },
           select: { subscriptionStatus: true },
         });
-        if (!tenant || tenant.subscriptionStatus === "SUSPENDED" || tenant.subscriptionStatus === "CANCELLED") {
+        const subscriptionStatus = tenant?.subscriptionStatus.toUpperCase();
+        if (!tenant || subscriptionStatus === "SUSPENDED" || subscriptionStatus === "CANCELLED") {
           return null;
         }
 

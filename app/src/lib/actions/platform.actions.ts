@@ -11,6 +11,7 @@ import {
   readXlsxTables,
   validateImportWorkbookRows,
   validateImportWorkbookSheets,
+  type ImportRowIssue,
 } from "@/lib/import/workbook-validation";
 import { importTenantWorkbook, type TenantImportResult } from "@/lib/import/tenant-import";
 
@@ -31,8 +32,8 @@ type WorkbookValidationResponse = {
     requiredSheets: string[];
     missingSheets: string[];
     extraSheets: string[];
-    rowErrors: { sheet: string; rowNumber: number; field: string; message: string }[];
-    rowWarnings: { sheet: string; rowNumber: number; field: string; message: string }[];
+    rowErrors: ImportRowIssue[];
+    rowWarnings: ImportRowIssue[];
     readyForImport: boolean;
   };
 };
@@ -40,8 +41,8 @@ type WorkbookValidationResponse = {
 type WorkbookImportResponse = {
   success: boolean;
   error?: string;
-  rowErrors?: { sheet: string; rowNumber: number; field: string; message: string }[];
-  rowWarnings?: { sheet: string; rowNumber: number; field: string; message: string }[];
+  rowErrors?: ImportRowIssue[];
+  rowWarnings?: ImportRowIssue[];
   data?: TenantImportResult;
 };
 

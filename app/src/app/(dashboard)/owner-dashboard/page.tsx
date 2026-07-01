@@ -169,7 +169,6 @@ export default async function OwnerDashboardPage({ searchParams }: { searchParam
         <div className="dash-panel-head">
           <div>
             <div className="dash-panel-title">Station Performance</div>
-            <div className="dash-panel-sub">Tenant-scoped data only</div>
           </div>
         </div>
         <div className="table-wrapper">
